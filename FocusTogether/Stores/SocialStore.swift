@@ -151,6 +151,23 @@ final class SocialStore: ObservableObject {
             .select().single().execute().value
     }
 
+    /// Sets the title shown on your card (nil goes back to your weekly rank).
+    func setCustomTitle(_ title: String?) async throws {
+        guard let client = Backend.client, let userID = me?.id else { return }
+        let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        struct Update: Encodable {
+            let profile_title: String?
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(profile_title, forKey: .profile_title)
+            }
+            enum CodingKeys: String, CodingKey { case profile_title }
+        }
+        me = try await client.from("profiles")
+            .update(Update(profile_title: (trimmed?.isEmpty ?? true) ? nil : trimmed))
+            .eq("id", value: userID).select().single().execute().value
+    }
+
     /// Reloads friends, requests, groups and invites. Called on a timer while the app is open.
     func refresh() async {
         guard let client = Backend.client, me != nil else { return }

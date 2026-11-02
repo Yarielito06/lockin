@@ -18,15 +18,12 @@ struct ProfileCardInfo {
     var inviteCode: String?
     var avatar: UIImage?
 
-    /// A fun title that grows with the week's focus.
+    /// Your own text if you wrote one, otherwise the rank for this week's focus.
+    var customTitle: String?
+
     var title: String {
-        switch weekMinutes {
-        case ..<1: "Getting started"
-        case ..<180: "Warming up"
-        case ..<420: "In the zone"
-        case ..<720: "Deep worker"
-        default: "Locked-in legend"
-        }
+        if let customTitle, !customTitle.trimmingCharacters(in: .whitespaces).isEmpty { return customTitle }
+        return FocusRank.rank(forMinutes: weekMinutes).title
     }
 
     var stats: [(value: String, label: String)] {
@@ -57,9 +54,54 @@ extension ProfileCardInfo {
             totalMinutes: history.records.reduce(0) { $0 + $1.minutes },
             dayMinutes: monday,
             inviteCode: social.me?.inviteCode,
-            avatar: avatars.image(for: social.me?.id)
+            avatar: avatars.image(for: social.me?.id),
+            customTitle: social.me?.profileTitle
         )
     }
+}
+
+/// Weekly ranks, earned by locking in. Each week starts again from Monday.
+enum FocusRank: Int, CaseIterable, Identifiable {
+    case starting, warmingUp, inTheZone, deepWorker, legend
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .starting: "Getting started"
+        case .warmingUp: "Warming up"
+        case .inTheZone: "In the zone"
+        case .deepWorker: "Deep worker"
+        case .legend: "Locked-in legend"
+        }
+    }
+
+    /// Focus minutes needed this week.
+    var minutes: Int {
+        switch self {
+        case .starting: 0
+        case .warmingUp: 1
+        case .inTheZone: 180
+        case .deepWorker: 420
+        case .legend: 720
+        }
+    }
+
+    var requirement: String {
+        switch self {
+        case .starting: "Where every week begins"
+        case .warmingUp: "Finish your first lock-in of the week"
+        case .inTheZone: "Lock in for 3 hours in total this week"
+        case .deepWorker: "Lock in for 7 hours in total this week"
+        case .legend: "Lock in for 12 hours in total this week"
+        }
+    }
+
+    static func rank(forMinutes minutes: Int) -> FocusRank {
+        allCases.last { minutes >= $0.minutes } ?? .starting
+    }
+
+    var next: FocusRank? { FocusRank(rawValue: rawValue + 1) }
 }
 
 enum CardStyle: String, CaseIterable, Identifiable {
@@ -369,6 +411,7 @@ struct MyProfileView: View {
     @AppStorage("lockin.cardStyle") private var style: CardStyle = .dark
     @State private var pickerItem: PhotosPickerItem?
     @State private var isEditing = false
+    @State private var isEditingTitle = false
     @State private var isPreparing = false
     @State private var shareItems: [Any] = []
     @State private var isSharing = false
@@ -402,6 +445,25 @@ struct MyProfileView: View {
                     }
 
                     if style == .custom { customControls.transition(.opacity) }
+
+                    Button { isEditingTitle = true } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "rosette")
+                                .foregroundStyle(Theme.accent)
+                            Text("Title: \(info.title)")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 16)
+                        .frame(height: 50)
+                        .background(Theme.surface, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, Theme.gutter)
 
                     VStack(spacing: 10) {
                         Button(action: share) {
@@ -444,6 +506,7 @@ struct MyProfileView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .sheet(isPresented: $isEditing) { EditProfileView() }
+            .sheet(isPresented: $isEditingTitle) { TitlesView() }
             .sheet(isPresented: $isSharing) { ShareSheet(items: shareItems).presentationDetents([.medium, .large]) }
             .onChange(of: pickerItem) { item in
                 Task {

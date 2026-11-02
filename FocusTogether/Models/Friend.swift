@@ -13,6 +13,7 @@ struct Friend: Identifiable, Codable, Equatable {
     var weekMinutes: Int = 0
     var streak: Int = 0
     var avatarPath: String?
+    var customTitle: String?
 
     /// Demo friends shown until friend sync exists. Their status is refreshed each launch.
     var isSample = false
