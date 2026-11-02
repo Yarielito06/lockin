@@ -29,6 +29,9 @@ final class HistoryStore: ObservableObject {
         records.filter { Calendar.current.isDate($0.endDate, inSameDayAs: date) }
     }
 
+    /// Every minute you've ever locked in for.
+    var totalMinutes: Int { records.reduce(0) { $0 + $1.minutes } }
+
     var todayMinutes: Int {
         minutes(since: Calendar.current.startOfDay(for: .now))
     }

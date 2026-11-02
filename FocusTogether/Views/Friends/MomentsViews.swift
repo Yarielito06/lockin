@@ -162,6 +162,7 @@ private struct MomentCard: View {
             ReactionBar(moment: moment)
         }
         .card(padding: 14)
+        .swipeToDelete(enabled: moments.isMine(moment)) { isConfirmingDelete = true }
         .confirmationDialog("Delete this moment?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { await moments.delete(moment) } }
         }

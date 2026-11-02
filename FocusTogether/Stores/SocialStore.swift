@@ -231,7 +231,7 @@ final class SocialStore: ObservableObject {
     // MARK: Live status
 
     /// Shares your live status with friends. Called when a session starts or ends and when stats change.
-    func publish(session: FocusSession?, weekMinutes: Int, streak: Int) async {
+    func publish(session: FocusSession?, weekMinutes: Int, streak: Int, totalMinutes: Int) async {
         guard let client = Backend.client, let userID = me?.id else { return }
         let update = ProfileStatusUpdate(
             focusingUntil: session?.endDate,
@@ -240,7 +240,8 @@ final class SocialStore: ObservableObject {
             focusOpen: session?.isOpenEnded ?? false,
             weekMinutes: weekMinutes,
             weekStart: Backend.currentWeekKey(),
-            streak: streak
+            streak: streak,
+            totalMinutes: totalMinutes
         )
         if let lastPublished, lastPublished.sameStatus(as: update) { return }
         do {
@@ -259,7 +260,7 @@ final class SocialStore: ObservableObject {
             .debounce(for: .seconds(1), scheduler: RunLoop.main)
             .sink { [weak self, weak blocking, weak history] _ in
                 guard let self, let blocking, let history else { return }
-                Task { await self.publish(session: blocking.activeSession, weekMinutes: history.weekMinutes, streak: history.streakDays) }
+                Task { await self.publish(session: blocking.activeSession, weekMinutes: history.weekMinutes, streak: history.streakDays, totalMinutes: history.totalMinutes) }
             }
             .store(in: &cancellables)
     }
@@ -268,7 +269,7 @@ final class SocialStore: ObservableObject {
     /// (a session that finished while the app was closed) never triggers the observer above.
     func publishCurrent() async {
         guard let blocking, let history else { return }
-        await publish(session: blocking.activeSession, weekMinutes: history.weekMinutes, streak: history.streakDays)
+        await publish(session: blocking.activeSession, weekMinutes: history.weekMinutes, streak: history.streakDays, totalMinutes: history.totalMinutes)
     }
 
     // MARK: Live updates

@@ -21,6 +21,7 @@ struct FriendDetailView: View {
                                 isLockedIn: friend.isFocusing(at: context.date),
                                 weekMinutes: friend.weekMinutes,
                                 streak: friend.streak,
+                                totalMinutes: friend.totalMinutes,
                                 avatar: avatars.image(for: friend.id),
                                 customTitle: friend.customTitle
                             ),

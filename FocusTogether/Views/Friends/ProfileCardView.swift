@@ -11,8 +11,8 @@ struct ProfileCardInfo {
     var isLockedIn = false
     var weekMinutes: Int
     var streak: Int
-    /// All-time focus minutes (yours only).
-    var totalMinutes: Int?
+    /// All-time focus minutes; decides the rank badge.
+    var totalMinutes: Int = 0
     /// Focus minutes for each day of this week, Monday first (yours only).
     var dayMinutes: [Int]?
     var inviteCode: String?
@@ -21,14 +21,16 @@ struct ProfileCardInfo {
     /// Your own text if you wrote one, otherwise the rank for this week's focus.
     var customTitle: String?
 
+    var rank: FocusRank { .rank(forMinutes: totalMinutes) }
+
     var title: String {
         if let customTitle, !customTitle.trimmingCharacters(in: .whitespaces).isEmpty { return customTitle }
-        return FocusRank.rank(forMinutes: weekMinutes).title
+        return rank.title
     }
 
     var stats: [(value: String, label: String)] {
         var items: [(String, String)] = [(weekMinutes.minutesLabel, "this week"), ("\(streak)", "day streak")]
-        if let totalMinutes { items.append((totalMinutes.minutesLabel, "all time")) }
+        items.append((totalMinutes.minutesLabel, "all time"))
         return items
     }
 }
@@ -51,7 +53,7 @@ extension ProfileCardInfo {
             isLockedIn: false,
             weekMinutes: history.weekMinutes,
             streak: history.streakDays,
-            totalMinutes: history.records.reduce(0) { $0 + $1.minutes },
+            totalMinutes: history.totalMinutes,
             dayMinutes: monday,
             inviteCode: social.me?.inviteCode,
             avatar: avatars.image(for: social.me?.id),
@@ -60,48 +62,91 @@ extension ProfileCardInfo {
     }
 }
 
-/// Weekly ranks, earned by locking in. Each week starts again from Monday.
+/// Ranks earned from your total focus time, ever. Each one has a badge.
 enum FocusRank: Int, CaseIterable, Identifiable {
-    case starting, warmingUp, inTheZone, deepWorker, legend
+    case newcomer, warmingUp, inTheZone, deepWorker, master, legend
 
     var id: Int { rawValue }
 
     var title: String {
         switch self {
-        case .starting: "Getting started"
+        case .newcomer: "Getting started"
         case .warmingUp: "Warming up"
         case .inTheZone: "In the zone"
         case .deepWorker: "Deep worker"
+        case .master: "Focus master"
         case .legend: "Locked-in legend"
         }
     }
 
-    /// Focus minutes needed this week.
+    /// All-time focus minutes needed.
     var minutes: Int {
         switch self {
-        case .starting: 0
-        case .warmingUp: 1
-        case .inTheZone: 180
-        case .deepWorker: 420
-        case .legend: 720
+        case .newcomer: 0
+        case .warmingUp: 10 * 60
+        case .inTheZone: 50 * 60
+        case .deepWorker: 100 * 60
+        case .master: 500 * 60
+        case .legend: 1000 * 60
         }
     }
 
     var requirement: String {
         switch self {
-        case .starting: "Where every week begins"
-        case .warmingUp: "Finish your first lock-in of the week"
-        case .inTheZone: "Lock in for 3 hours in total this week"
-        case .deepWorker: "Lock in for 7 hours in total this week"
-        case .legend: "Lock in for 12 hours in total this week"
+        case .newcomer: "Where everyone begins"
+        default: "Lock in for \(minutes / 60) hours in total"
+        }
+    }
+
+    /// Badge 1–5; the starting rank has none.
+    var hasBadge: Bool { self != .newcomer }
+
+    var symbol: String {
+        switch self {
+        case .newcomer: "circle"
+        case .warmingUp: "flame.fill"
+        case .inTheZone: "bolt.fill"
+        case .deepWorker: "star.fill"
+        case .master: "diamond.fill"
+        case .legend: "crown.fill"
+        }
+    }
+
+    var colors: [Color] {
+        switch self {
+        case .newcomer: [.gray, .gray]
+        case .warmingUp: [Color(red: 0.86, green: 0.55, blue: 0.30), Color(red: 0.62, green: 0.34, blue: 0.16)]
+        case .inTheZone: [Color(red: 0.78, green: 0.82, blue: 0.88), Color(red: 0.50, green: 0.56, blue: 0.66)]
+        case .deepWorker: [Color(red: 1.0, green: 0.84, blue: 0.35), Color(red: 0.88, green: 0.62, blue: 0.10)]
+        case .master: [Color(red: 0.45, green: 0.90, blue: 0.95), Color(red: 0.20, green: 0.55, blue: 0.90)]
+        case .legend: [Color(red: 0.80, green: 0.50, blue: 1.0), Color(red: 1.0, green: 0.45, blue: 0.55)]
         }
     }
 
     static func rank(forMinutes minutes: Int) -> FocusRank {
-        allCases.last { minutes >= $0.minutes } ?? .starting
+        allCases.last { minutes >= $0.minutes } ?? .newcomer
     }
 
     var next: FocusRank? { FocusRank(rawValue: rawValue + 1) }
+}
+
+/// The rank's badge: a metal-coloured disc with its symbol.
+struct RankBadge: View {
+    let rank: FocusRank
+    var size: CGFloat = 20
+
+    var body: some View {
+        if rank.hasBadge {
+            Image(systemName: rank.symbol)
+                .font(.system(size: size * 0.5, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(LinearGradient(colors: rank.colors, startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.45), lineWidth: size * 0.05))
+                .shadow(color: rank.colors[0].opacity(0.5), radius: size * 0.2)
+                .accessibilityLabel("\(rank.title) badge")
+        }
+    }
 }
 
 enum CardStyle: String, CaseIterable, Identifiable {
@@ -303,12 +348,16 @@ struct ProfileCard: View {
                     .minimumScaleFactor(0.6)
                     .padding(.top, 16)
 
-                Text(info.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(style.chip, in: Capsule())
-                    .padding(.top, 8)
+                HStack(spacing: 7) {
+                    RankBadge(rank: info.rank, size: 20)
+                    Text(info.title)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .padding(.leading, info.rank.hasBadge ? 6 : 12)
+                .padding(.trailing, 12)
+                .padding(.vertical, 5)
+                .background(style.chip, in: Capsule())
+                .padding(.top, 8)
 
                 Spacer(minLength: 16)
 
@@ -448,8 +497,11 @@ struct MyProfileView: View {
 
                     Button { isEditingTitle = true } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "rosette")
-                                .foregroundStyle(Theme.accent)
+                            if info.rank.hasBadge {
+                                RankBadge(rank: info.rank, size: 24)
+                            } else {
+                                Image(systemName: "rosette").foregroundStyle(Theme.accent)
+                            }
                             Text("Title: \(info.title)")
                                 .font(.subheadline.weight(.semibold))
                             Spacer()
@@ -651,11 +703,15 @@ struct MeCardHeader: View {
                             .font(.system(size: 24, weight: .bold, design: .rounded))
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
-                        Text(info.title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(style.chip, in: Capsule())
+                        HStack(spacing: 6) {
+                            RankBadge(rank: info.rank, size: 18)
+                            Text(info.title)
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .padding(.leading, info.rank.hasBadge ? 5 : 10)
+                        .padding(.trailing, 10)
+                        .padding(.vertical, 4)
+                        .background(style.chip, in: Capsule())
                     }
                     Spacer(minLength: 8)
                     Image(style.logo)

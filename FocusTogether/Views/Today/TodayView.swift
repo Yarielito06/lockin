@@ -34,6 +34,7 @@ struct TodayView: View {
                                 onDelete: { deleting = routine },
                                 onComplete: { streak in celebrate(routine, streak: streak) }
                             )
+                            .swipeToDelete { deleting = routine }
                             .contextMenu {
                                 Button { editing = routine } label: {
                                     Label("Edit", systemImage: "pencil")

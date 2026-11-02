@@ -41,8 +41,10 @@ struct ProfileRow: Codable, Identifiable, Equatable {
     var streak: Int
     var avatarPath: String?
     var profileTitle: String?
+    var totalMinutes: Int?
 
     enum CodingKeys: String, CodingKey {
+        case totalMinutes = "total_minutes"
         case profileTitle = "profile_title"
         case avatarPath = "avatar_path"
         case focusSince = "focus_since"
@@ -69,7 +71,8 @@ struct ProfileRow: Codable, Identifiable, Equatable {
             weekMinutes: weekStart == Backend.currentWeekKey() ? weekMinutes : 0,
             streak: streak,
             avatarPath: avatarPath,
-            customTitle: profileTitle
+            customTitle: profileTitle,
+            totalMinutes: totalMinutes ?? 0
         )
     }
 }
@@ -83,9 +86,11 @@ struct ProfileStatusUpdate: Encodable, Equatable {
     var weekMinutes: Int
     var weekStart: String
     var streak: Int
+    var totalMinutes: Int
     var updatedAt = Date()
 
     enum CodingKeys: String, CodingKey {
+        case totalMinutes = "total_minutes"
         case focusSince = "focus_since"
         case focusOpen = "focus_open"
         case focusingUntil = "focusing_until"
@@ -106,6 +111,7 @@ struct ProfileStatusUpdate: Encodable, Equatable {
         try container.encode(weekMinutes, forKey: .weekMinutes)
         try container.encode(weekStart, forKey: .weekStart)
         try container.encode(streak, forKey: .streak)
+        try container.encode(totalMinutes, forKey: .totalMinutes)
         try container.encode(updatedAt, forKey: .updatedAt)
     }
 
@@ -114,6 +120,7 @@ struct ProfileStatusUpdate: Encodable, Equatable {
         focusingUntil == other.focusingUntil && focusGroup == other.focusGroup
             && focusSince == other.focusSince && focusOpen == other.focusOpen
             && weekMinutes == other.weekMinutes && weekStart == other.weekStart && streak == other.streak
+            && totalMinutes == other.totalMinutes
     }
 }
 

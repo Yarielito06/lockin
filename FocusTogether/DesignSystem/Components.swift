@@ -252,3 +252,87 @@ struct ProgressBar: View {
         .animation(Theme.spring, value: progress)
     }
 }
+
+
+// MARK: Swipe to delete
+
+private struct SwipeToDelete: ViewModifier {
+    let isEnabled: Bool
+    let cornerRadius: CGFloat
+    let onDelete: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @State private var isOpen = false
+    @State private var didBuzz = false
+
+    private let revealWidth: CGFloat = 92
+    private let fullSwipe: CGFloat = 170
+
+    func body(content: Content) -> some View {
+        if !isEnabled {
+            content
+        } else {
+            content
+                .offset(x: offset)
+                .background(alignment: .leading) {
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(Color.red)
+                        Button {
+                            close()
+                            onDelete()
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: "trash.fill").font(.system(size: 18, weight: .semibold))
+                                Text("Delete").font(.caption.weight(.semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(width: revealWidth)
+                            .frame(maxHeight: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(offset > 20 ? 1 : 0)
+                    }
+                    .opacity(offset > 1 ? 1 : 0)
+                }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 18)
+                        .onChanged { drag in
+                            // Only a mostly sideways drag counts, so scrolling still works.
+                            guard abs(drag.translation.width) > abs(drag.translation.height) * 1.4 else { return }
+                            let start: CGFloat = isOpen ? revealWidth : 0
+                            let raw = start + drag.translation.width
+                            offset = raw < 0 ? raw / 6 : min(raw, fullSwipe + 40)
+                            if offset > fullSwipe, !didBuzz {
+                                didBuzz = true
+                                Haptics.select()
+                            } else if offset <= fullSwipe { didBuzz = false }
+                        }
+                        .onEnded { _ in
+                            if offset > fullSwipe {
+                                close()
+                                onDelete()
+                            } else if offset > revealWidth * 0.5 {
+                                withAnimation(Theme.spring) { offset = revealWidth }
+                                isOpen = true
+                            } else {
+                                close()
+                            }
+                        }
+                )
+        }
+    }
+
+    private func close() {
+        withAnimation(Theme.spring) { offset = 0 }
+        isOpen = false
+        didBuzz = false
+    }
+}
+
+extension View {
+    /// Swipe right to reveal Delete; a long swipe deletes straight away.
+    func swipeToDelete(enabled: Bool = true, cornerRadius: CGFloat = Theme.cornerRadius, onDelete: @escaping () -> Void) -> some View {
+        modifier(SwipeToDelete(isEnabled: enabled, cornerRadius: cornerRadius, onDelete: onDelete))
+    }
+}

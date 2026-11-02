@@ -12,7 +12,7 @@ struct TitlesView: View {
     @State private var errorMessage: String?
     @FocusState private var isFocused: Bool
 
-    private var minutes: Int { history.weekMinutes }
+    private var minutes: Int { history.totalMinutes }
     private var current: FocusRank { .rank(forMinutes: minutes) }
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -54,12 +54,12 @@ struct TitlesView: View {
     private var ranks: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Ranks are earned from your focus time this week, Monday to Sunday, and start again each week.")
+                Text("Ranks come from all the time you've ever locked in. They never reset, and each one earns a badge that shows next to your title.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 if let next = current.next {
                     VStack(alignment: .leading, spacing: 6) {
-                        ProgressBar(progress: min(1, Double(minutes) / Double(next.minutes)))
+                        ProgressBar(progress: min(1, Double(minutes - current.minutes) / Double(max(1, next.minutes - current.minutes))))
                             .frame(height: 8)
                         Text("\(minutes.minutesLabel) so far · \(max(0, next.minutes - minutes).minutesLabel) to \(next.title)")
                             .font(.caption.weight(.semibold))
@@ -81,11 +81,27 @@ struct TitlesView: View {
         let unlocked = minutes >= rank.minutes
         let isCurrent = rank == current
         return HStack(spacing: 14) {
-            Image(systemName: unlocked ? "checkmark.seal.fill" : "lock.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(unlocked ? Theme.accent : Color.secondary)
-                .frame(width: 40, height: 40)
-                .background((unlocked ? Theme.accent : Color.primary).opacity(unlocked ? 0.14 : 0.06), in: Circle())
+            ZStack {
+                if rank.hasBadge {
+                    RankBadge(rank: rank, size: 40)
+                        .saturation(unlocked ? 1 : 0)
+                        .opacity(unlocked ? 1 : 0.45)
+                } else {
+                    Circle().fill(Color.primary.opacity(0.06)).frame(width: 40, height: 40)
+                    Image(systemName: "flag.fill").font(.system(size: 15)).foregroundStyle(.secondary)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !unlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 18, height: 18)
+                        .background(Color.gray, in: Circle())
+                        .overlay(Circle().stroke(Theme.surface, lineWidth: 2))
+                        .offset(x: 4, y: 4)
+                }
+            }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(rank.title)
@@ -115,7 +131,7 @@ struct TitlesView: View {
 
     private var ownTitle: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Write anything you like. It shows on your card instead of your rank, and your friends see it too.")
+            Text("Write anything you like. It replaces the rank name on your card, and your rank badge stays next to it. Friends see it too.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             TextField("Med student, Gym rat, Night owl…", text: $text)
