@@ -1,0 +1,19 @@
+// Signing settings shared by the app and both extensions.
+// Put your own values in Config/Signing.local.xcconfig (git-ignored, copy of this file) or edit them here.
+// Change these two values, then build. Everything else derives from them:
+//   app            $(BUNDLE_ID_PREFIX).FocusTogether
+//   monitor ext    $(BUNDLE_ID_PREFIX).FocusTogether.DeviceActivityMonitor
+//   shield ext     $(BUNDLE_ID_PREFIX).FocusTogether.ShieldConfiguration
+//   App Group      group.$(BUNDLE_ID_PREFIX).FocusTogether
+
+BUNDLE_ID_PREFIX = com.yourname
+DEVELOPMENT_TEAM = ABCDE12345
+
+// Supabase (friends). Leave empty to run with on-device sample friends.
+// Host only, without https:// — xcconfig treats "//" as the start of a comment.
+// The anon key is the public client key; never put the service_role key here.
+SUPABASE_HOST =
+SUPABASE_ANON_KEY =
+
+// Your private overrides, if the file exists.
+#include? "Signing.local.xcconfig"
