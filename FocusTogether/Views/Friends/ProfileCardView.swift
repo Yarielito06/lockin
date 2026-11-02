@@ -102,10 +102,11 @@ final class CardBackground {
         guard count > 0 else { return nil }
         var frames: [UIImage] = []
         var total: TimeInterval = 0
+        // A photo keeps plenty of pixels so it stays sharp on cards; a GIF's frames are kept lighter.
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 900,
+            kCGImageSourceThumbnailMaxPixelSize: count > 1 ? 900 : 2400,
         ]
         for index in 0..<count {
             guard let cg = CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary) else { continue }
@@ -551,6 +552,18 @@ struct MeCardHeader: View {
     private let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
 
     var body: some View {
+        content
+            .foregroundStyle(style.ink)
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            // The picture sits behind the content, so its size can never stretch the box.
+            .background { backdrop }
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(style.ink.opacity(style == .light ? 0.08 : 0.12), lineWidth: 1))
+            .shadow(color: style == .light ? .black.opacity(0.06) : style.glow.opacity(0.18), radius: 16, y: 6)
+    }
+
+    private var backdrop: some View {
         ZStack {
             LinearGradient(colors: style.background, startPoint: .top, endPoint: .bottom)
             if style == .custom, let background = backgrounds.background {
@@ -563,8 +576,11 @@ struct MeCardHeader: View {
                     .blur(radius: 50)
                     .offset(x: 110, y: -60)
             }
+        }
+    }
 
-            VStack(alignment: .leading, spacing: 16) {
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     avatar
                     VStack(alignment: .leading, spacing: 6) {
@@ -595,12 +611,6 @@ struct MeCardHeader: View {
                     stat("\(info.streak)", "day streak", flame: true)
                 }
             }
-            .foregroundStyle(style.ink)
-            .padding(18)
-        }
-        .clipShape(shape)
-        .overlay(shape.strokeBorder(style.ink.opacity(style == .light ? 0.08 : 0.12), lineWidth: 1))
-        .shadow(color: style == .light ? .black.opacity(0.06) : style.glow.opacity(0.18), radius: 16, y: 6)
     }
 
     private var divider: some View {
@@ -612,7 +622,12 @@ struct MeCardHeader: View {
         if background.isAnimated {
             AnimatedFramesView(background: background)
         } else if let still = background.still {
-            Image(uiImage: still).resizable().scaledToFill()
+            Image(uiImage: still)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
         }
     }
 
