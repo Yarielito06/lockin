@@ -23,11 +23,15 @@ struct WidgetLockIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         // Already locked in: nothing to do.
-        if let running = SharedStore.loadSession(), !running.isFinished(at: .now) { return .result() }
+        if let running = SharedStore.loadSession(), !running.isFinished(at: .now) {
+            await tell("Already locked in", "Your apps are blocked. Open Lockin to see the timer.")
+            return .result()
+        }
 
         let selection = SharedStore.loadSelection()
         guard !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty || !selection.webDomainTokens.isEmpty else {
             LockRequest.post(mode)   // No apps chosen yet: Lockin will take you to the Lock tab next time.
+            await tell("Choose your apps first", "Open Lockin and pick the apps to block, then tap the button again.")
             return .result()
         }
 
@@ -45,12 +49,14 @@ struct WidgetLockIntent: AppIntent {
             try schedule(session)
         } catch {
             LockRequest.post(mode)
+            await tell("Couldn't start", "iOS wouldn't let the widget set the block (\(error.localizedDescription)). Open Lockin and tap Lock in.")
             return .result()
         }
         ShieldController.apply(selection)
         SharedStore.saveSession(session)
 
         if !session.isOpenEnded { await notifyAtEnd(session) }
+        await tell("Locked in 🔒", session.isOpenEnded ? "Free time started. Stop it from Lockin when you're done." : "\(session.durationMinutes) minutes. Stay with it.")
 
         // Show the locked state on the widget straight away.
         var snapshot = WidgetSnapshot.load()
@@ -74,6 +80,20 @@ struct WidgetLockIntent: AppIntent {
         let center = DeviceActivityCenter()
         center.stopMonitoring([.focusSession])
         try center.startMonitoring(.focusSession, during: schedule)
+    }
+
+    /// A quick banner, since a widget can't show an alert of its own.
+    private func tell(_ title: String, _ body: String) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "lockin.widget.result",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+        try? await UNUserNotificationCenter.current().add(request)
     }
 
     private func notifyAtEnd(_ session: FocusSession) async {
