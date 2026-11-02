@@ -30,6 +30,17 @@ struct MainTabView: View {
 
             LockinTabBar(selection: $tab)
         }
+        // A lock-in asked for from a widget, the lock screen or Control Center.
+        .onOpenURL { url in
+            guard url.scheme == "lockin", url.host == "lock",
+                  let mode = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "mode" })?.value
+            else { return }
+            startFromOutside(mode)
+        }
+        .onAppear { if let mode = LockRequest.take() { startFromOutside(mode) } }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active, let mode = LockRequest.take() { startFromOutside(mode) }
+        }
         // Celebrate a new rank, once the session celebration (if any) is out of the way.
         .onAppear { checkRankUp() }
         .onChange(of: history.totalMinutes) { _ in checkRankUp() }
@@ -56,6 +67,18 @@ struct MainTabView: View {
 }
 
 extension MainTabView {
+    /// Starts a session straight away; with no apps chosen yet it just shows the Lock tab so you can pick some.
+    fileprivate func startFromOutside(_ mode: String) {
+        tab = .lock
+        guard blocking.activeSession == nil, blocking.hasSelection else { return }
+        Haptics.success()
+        if mode == "free" {
+            blocking.startOpenEndedSession()
+        } else if let minutes = Int(mode), minutes >= 15 {
+            blocking.startSession(minutes: minutes)
+        }
+    }
+
     fileprivate func checkRankUp() {
         let current = FocusRank.rank(forMinutes: history.totalMinutes)
         guard celebratedRank >= 0 else {

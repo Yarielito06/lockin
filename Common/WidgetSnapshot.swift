@@ -82,6 +82,8 @@ struct WidgetSnapshot: Codable, Equatable {
     var friendsLocked: [FriendInfo]? = nil
     var goals: [GoalInfo]? = nil
     var plannedItems: [PlannedInfo]? = nil
+    /// Whether any apps are chosen to block, so the Lock in widget can say so.
+    var hasBlockedApps: Bool? = nil
 
     static let empty = WidgetSnapshot(
         day: Calendar.current.startOfDay(for: .now), routinesDone: 0, routinesTotal: 0,

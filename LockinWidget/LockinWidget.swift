@@ -5,10 +5,14 @@ import WidgetKit
 struct LockinWidgetBundle: WidgetBundle {
     var body: some Widget {
         LockinWidget()
+        LockinStartWidget()
         LockinRoutinesWidget()
         LockinFriendsWidget()
         LockinGoalWidget()
         LockinLiveActivity()
+        if #available(iOS 18.0, *) {
+            LockinControl()
+        }
     }
 }
 

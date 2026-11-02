@@ -90,7 +90,8 @@ final class WidgetPublisher: ObservableObject {
                 friend.focusingUntil.map { .init(id: friend.id, name: friend.name, until: $0, since: friend.focusingSince, isOpen: friend.isFocusOpen) }
             },
             goals: planner.activeGoals.prefix(3).map { .init(id: $0.id, title: $0.title, symbol: $0.symbol, targetDate: $0.targetDate, createdAt: $0.createdAt) },
-            plannedItems: planner.upcoming(limit: 4).filter { !$0.isGoal }.map { .init(id: $0.id, title: $0.title, symbol: $0.symbol, date: $0.date) }
+            plannedItems: planner.upcoming(limit: 4).filter { !$0.isGoal }.map { .init(id: $0.id, title: $0.title, symbol: $0.symbol, date: $0.date) },
+            hasBlockedApps: blocking.hasSelection
         )
     }
 }
