@@ -100,6 +100,7 @@ final class SocialStore: ObservableObject {
                 await PushRegistration.upload()
                 await refresh()
                 await publishCurrent()
+                startRealtime()
             }
         } catch {
             report(error)
@@ -129,6 +130,7 @@ final class SocialStore: ObservableObject {
                     .select().single().execute().value
             }
             await refresh()
+            startRealtime()
         } catch {
             report(error)
         }
@@ -235,6 +237,45 @@ final class SocialStore: ObservableObject {
     func publishCurrent() async {
         guard let blocking, let history else { return }
         await publish(session: blocking.activeSession, weekMinutes: history.weekMinutes, streak: history.streakDays)
+    }
+
+    // MARK: Live updates
+
+    /// Bumped whenever a cheer arrives, so open screens can reload at once.
+    @Published private(set) var cheerPing = 0
+    private var realtimeTask: Task<Void, Never>?
+
+    /// Listens for friends' status changes and cheers, so they show up without waiting for the next refresh.
+    private func startRealtime() {
+        guard let client = Backend.client, let myID = me?.id, realtimeTask == nil else { return }
+        realtimeTask = Task { [weak self] in
+            let channel = client.realtimeV2.channel("lockin-live")
+            let profileChanges = channel.postgresChange(AnyAction.self, schema: "public", table: "profiles")
+            let cheerInserts = channel.postgresChange(InsertAction.self, schema: "public", table: "cheers", filter: "to_id=eq.\(myID.uuidString.lowercased())")
+            do {
+                try await channel.subscribeWithError()
+            } catch {
+                await MainActor.run { self?.realtimeTask = nil }
+                return
+            }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    var last = Date.distantPast
+                    for await _ in profileChanges {
+                        // A burst of changes needs only one reload.
+                        guard Date().timeIntervalSince(last) > 1 else { continue }
+                        last = Date()
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        await self?.refresh()
+                    }
+                }
+                group.addTask {
+                    for await _ in cheerInserts {
+                        await MainActor.run { self?.cheerPing += 1 }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: Cheers

@@ -10,39 +10,29 @@ struct FriendDetailView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                VStack(spacing: 12) {
-                    Avatar(name: friend.name, size: 84)
-                    Text(friend.name)
-                        .font(.title2.bold())
-                    TimelineView(.periodic(from: .now, by: 30)) { context in
+            ScrollView {
+            VStack(spacing: 22) {
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    VStack(spacing: 14) {
+                        ProfileCard(
+                            info: ProfileCardInfo(
+                                name: friend.name,
+                                isLockedIn: friend.isFocusing(at: context.date),
+                                weekMinutes: friend.weekMinutes,
+                                streak: friend.streak
+                            ),
+                            style: .midnight
+                        )
+                        .shadow(color: Color(red: 1, green: 0.42, blue: 0.18).opacity(0.3), radius: 22, y: 10)
+
                         if friend.isFocusing(at: context.date) {
                             Label("Locked in · \(friend.focusStatus(at: context.date))", systemImage: "lock.fill")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Theme.accent)
-                        } else {
-                            Text("Not locked in right now")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Theme.accent)
+                            if !friend.isSample { CheerMenu(friend: friend, style: .large) }
                         }
                     }
                 }
-                .padding(.top, 8)
-
-                HStack(spacing: 0) {
-                    stat(friend.weekMinutes.minutesLabel, "This week")
-                    Divider().frame(height: 32)
-                    stat("\(friend.streak)", "Day streak", symbol: "flame.fill", lit: friend.streak > 0)
-                }
-                .card(padding: 18)
-
-                TimelineView(.periodic(from: .now, by: 30)) { context in
-                    if friend.isFocusing(at: context.date), !friend.isSample {
-                        CheerMenu(friend: friend, style: .large)
-                    }
-                }
-
-                Spacer()
 
                 Button(role: .destructive) {
                     isConfirmingRemove = true
@@ -69,6 +59,7 @@ struct FriendDetailView: View {
                 }
             }
             .padding(Theme.gutter)
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -76,7 +67,7 @@ struct FriendDetailView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
     }
 
     private func stat(_ value: String, _ label: String, symbol: String? = nil, lit: Bool = true) -> some View {

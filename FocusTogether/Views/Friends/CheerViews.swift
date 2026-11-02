@@ -99,6 +99,9 @@ struct CheersStrip: View {
             }
         }
         .animation(Theme.spring, value: social.cheers)
+        .onChange(of: social.cheerPing) { _ in
+            Task { if await social.refreshCheers(since: since) { Haptics.success() } }
+        }
         .task(id: since) {
             while !Task.isCancelled {
                 if await social.refreshCheers(since: since) { Haptics.success() }

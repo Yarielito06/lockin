@@ -5,6 +5,7 @@ struct FriendsView: View {
     @EnvironmentObject private var social: SocialStore
     @EnvironmentObject private var history: HistoryStore
     @State private var isAddingFriend = false
+    @State private var isShowingMyCard = false
     @State private var selectedFriend: Friend?
     @State private var section: FriendsSection = .moments
     @EnvironmentObject private var moments: MomentsStore
@@ -76,6 +77,7 @@ struct FriendsView: View {
             }
             .task { await social.refresh() }
             .sheet(isPresented: $isAddingFriend) { AddFriendView() }
+            .sheet(isPresented: $isShowingMyCard) { MyProfileView() }
             .sheet(item: $selectedFriend) { FriendDetailView(friend: $0) }
             .alert(
                 "Friends",
@@ -99,6 +101,15 @@ struct FriendsView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                Spacer()
+                if social.me != nil {
+                    Label("My card", systemImage: "rectangle.portrait.on.rectangle.portrait")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Theme.accent.opacity(0.12), in: Capsule())
+                }
             }
             HStack(spacing: 0) {
                 stat(history.todayMinutes.minutesLabel, "Today")
@@ -109,6 +120,12 @@ struct FriendsView: View {
             }
         }
         .card(padding: 20)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard social.me != nil else { return }
+            Haptics.tap()
+            isShowingMyCard = true
+        }
     }
 
     private func stat(_ value: String, _ label: String, symbol: String? = nil, lit: Bool = true) -> some View {
