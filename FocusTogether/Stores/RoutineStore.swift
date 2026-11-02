@@ -162,6 +162,12 @@ final class RoutineStore: ObservableObject {
         }
     }
 
+    /// Puts a deleted routine back where it was (the undo after a swipe).
+    func restore(_ routine: Routine, at index: Int) {
+        guard !routines.contains(where: { $0.id == routine.id }) else { return }
+        routines.insert(routine, at: min(max(0, index), routines.count))
+    }
+
     func delete(_ routine: Routine) {
         routines.removeAll { $0.id == routine.id }
     }

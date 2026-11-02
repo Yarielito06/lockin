@@ -9,6 +9,8 @@ struct TodayView: View {
     @State private var toast: String?
     @State private var isShowingCalendar = false
     @State private var toastTask: Task<Void, Never>?
+    @State private var undoItem: (routine: Routine, index: Int)?
+    @State private var undoTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -34,7 +36,7 @@ struct TodayView: View {
                                 onDelete: { deleting = routine },
                                 onComplete: { streak in celebrate(routine, streak: streak) }
                             )
-                            .swipeToDelete { deleting = routine }
+                            .swipeToDelete { deleteWithUndo(routine) }
                             .contextMenu {
                                 Button { editing = routine } label: {
                                     Label("Edit", systemImage: "pencil")
@@ -51,7 +53,26 @@ struct TodayView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .overlay(alignment: .bottom) {
-                if let toast {
+                if let undoItem {
+                    HStack(spacing: 14) {
+                        Text("Deleted \(undoItem.routine.name)")
+                            .font(.subheadline.weight(.semibold))
+                        Button("Undo") {
+                            Haptics.success()
+                            withAnimation(Theme.spring) { store.restore(undoItem.routine, at: undoItem.index) }
+                            undoTask?.cancel()
+                            self.undoItem = nil
+                        }
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Theme.accent)
+                    }
+                    .foregroundStyle(Theme.background)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Color.primary, in: Capsule())
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if let toast {
                     Text(toast)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.background)
@@ -63,6 +84,7 @@ struct TodayView: View {
                 }
             }
             .animation(Theme.spring, value: toast)
+            .animation(Theme.spring, value: undoItem?.routine.id)
             .sheet(isPresented: $isShowingCalendar) { CalendarView() }
             .sheet(isPresented: $isAdding) {
                 AddRoutineFlow()
@@ -87,6 +109,18 @@ struct TodayView: View {
             } message: {
                 Text("Its reminders and today's ticks go with it.")
             }
+        }
+    }
+
+    private func deleteWithUndo(_ routine: Routine) {
+        let index = store.routines.firstIndex { $0.id == routine.id } ?? store.routines.count
+        withAnimation(Theme.spring) { store.delete(routine) }
+        undoItem = (routine, index)
+        undoTask?.cancel()
+        undoTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            undoItem = nil
         }
     }
 

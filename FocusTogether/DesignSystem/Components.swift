@@ -259,14 +259,19 @@ struct ProgressBar: View {
 private struct SwipeToDelete: ViewModifier {
     let isEnabled: Bool
     let cornerRadius: CGFloat
+    /// Ask before deleting (the card springs back first) instead of flying away.
+    let confirmFirst: Bool
     let onDelete: () -> Void
 
-    @State private var offset: CGFloat = 0
+    @State private var offset: CGFloat = 0     // negative while swiping left
     @State private var isOpen = false
-    @State private var didBuzz = false
+    @State private var isPastThreshold = false
+    @State private var isGone = false
 
-    private let revealWidth: CGFloat = 92
-    private let fullSwipe: CGFloat = 170
+    private let revealWidth: CGFloat = 96
+    private let threshold: CGFloat = 150
+
+    private var pull: CGFloat { max(0, -offset) }
 
     func body(content: Content) -> some View {
         if !isEnabled {
@@ -274,65 +279,101 @@ private struct SwipeToDelete: ViewModifier {
         } else {
             content
                 .offset(x: offset)
-                .background(alignment: .leading) {
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(Color.red)
-                        Button {
-                            close()
-                            onDelete()
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: "trash.fill").font(.system(size: 18, weight: .semibold))
-                                Text("Delete").font(.caption.weight(.semibold))
-                            }
-                            .foregroundStyle(.white)
-                            .frame(width: revealWidth)
-                            .frame(maxHeight: .infinity)
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(offset > 20 ? 1 : 0)
-                    }
-                    .opacity(offset > 1 ? 1 : 0)
-                }
+                .opacity(isGone ? 0 : 1)
+                .background(alignment: .trailing) { deleteLayer }
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 18)
-                        .onChanged { drag in
-                            // Only a mostly sideways drag counts, so scrolling still works.
-                            guard abs(drag.translation.width) > abs(drag.translation.height) * 1.4 else { return }
-                            let start: CGFloat = isOpen ? revealWidth : 0
-                            let raw = start + drag.translation.width
-                            offset = raw < 0 ? raw / 6 : min(raw, fullSwipe + 40)
-                            if offset > fullSwipe, !didBuzz {
-                                didBuzz = true
-                                Haptics.select()
-                            } else if offset <= fullSwipe { didBuzz = false }
-                        }
-                        .onEnded { _ in
-                            if offset > fullSwipe {
-                                close()
-                                onDelete()
-                            } else if offset > revealWidth * 0.5 {
-                                withAnimation(Theme.spring) { offset = revealWidth }
-                                isOpen = true
-                            } else {
-                                close()
-                            }
-                        }
+                        .onChanged(changed)
+                        .onEnded(ended)
                 )
         }
     }
 
+    /// Red slab that fills in behind the card, with a trash can that pops when you've pulled far enough.
+    private var deleteLayer: some View {
+        ZStack(alignment: .trailing) {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.red.opacity(0.55 + 0.45 * min(1, pull / threshold)))
+            Button {
+                fire()
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: isPastThreshold ? "trash.fill" : "trash")
+                        .font(.system(size: 20, weight: .semibold))
+                        .scaleEffect(isPastThreshold ? 1.3 : 1)
+                        .rotationEffect(.degrees(isPastThreshold ? -12 : 0))
+                    Text(isPastThreshold ? "Release" : "Delete")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(width: revealWidth)
+                .frame(maxHeight: .infinity)
+            }
+            .buttonStyle(.plain)
+            .opacity(pull > 24 ? 1 : 0)
+        }
+        .opacity(pull > 1 ? 1 : 0)
+    }
+
+    private func changed(_ drag: DragGesture.Value) {
+        // Only a mostly sideways drag counts, so scrolling still works.
+        guard abs(drag.translation.width) > abs(drag.translation.height) * 1.4 else { return }
+        let start: CGFloat = isOpen ? -revealWidth : 0
+        let raw = start + drag.translation.width
+        // Left pulls the card; right just stretches a little.
+        offset = raw > 0 ? raw / 8 : max(raw, -(threshold + 90))
+        let past = pull > threshold
+        if past != isPastThreshold {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) { isPastThreshold = past }
+            if past { UIImpactFeedbackGenerator(style: .rigid).impactOccurred() } else { Haptics.select() }
+        }
+    }
+
+    private func ended(_ drag: DragGesture.Value) {
+        if pull > threshold {
+            fire()
+        } else if pull > revealWidth * 0.5 {
+            withAnimation(Theme.spring) { offset = -revealWidth }
+            isOpen = true
+            isPastThreshold = false
+        } else {
+            close()
+        }
+    }
+
+    private func fire() {
+        if confirmFirst {
+            close()
+            onDelete()
+            return
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        withAnimation(.easeIn(duration: 0.22)) {
+            offset = -600
+            isGone = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+            onDelete()
+            // In case the card sticks around (e.g. the delete was cancelled), bring it back.
+            offset = 0
+            isGone = false
+            isOpen = false
+            isPastThreshold = false
+        }
+    }
+
     private func close() {
-        withAnimation(Theme.spring) { offset = 0 }
+        withAnimation(Theme.spring) {
+            offset = 0
+            isPastThreshold = false
+        }
         isOpen = false
-        didBuzz = false
     }
 }
 
 extension View {
-    /// Swipe right to reveal Delete; a long swipe deletes straight away.
-    func swipeToDelete(enabled: Bool = true, cornerRadius: CGFloat = Theme.cornerRadius, onDelete: @escaping () -> Void) -> some View {
-        modifier(SwipeToDelete(isEnabled: enabled, cornerRadius: cornerRadius, onDelete: onDelete))
+    /// Swipe left to reveal Delete; pull past the mark and let go to delete.
+    func swipeToDelete(enabled: Bool = true, cornerRadius: CGFloat = Theme.cornerRadius, confirmFirst: Bool = false, onDelete: @escaping () -> Void) -> some View {
+        modifier(SwipeToDelete(isEnabled: enabled, cornerRadius: cornerRadius, confirmFirst: confirmFirst, onDelete: onDelete))
     }
 }

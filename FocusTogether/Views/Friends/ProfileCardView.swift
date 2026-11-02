@@ -98,12 +98,12 @@ enum FocusRank: Int, CaseIterable, Identifiable {
         }
     }
 
-    /// Badge 1–5; the starting rank has none.
-    var hasBadge: Bool { self != .newcomer }
+    /// Every rank has a badge; the starting one is a plain silver sparkle.
+    var hasBadge: Bool { true }
 
     var symbol: String {
         switch self {
-        case .newcomer: "circle"
+        case .newcomer: "sparkle"
         case .warmingUp: "flame.fill"
         case .inTheZone: "bolt.fill"
         case .deepWorker: "star.fill"
@@ -114,7 +114,7 @@ enum FocusRank: Int, CaseIterable, Identifiable {
 
     var colors: [Color] {
         switch self {
-        case .newcomer: [.gray, .gray]
+        case .newcomer: [Color(white: 0.74), Color(white: 0.5)]
         case .warmingUp: [Color(red: 0.86, green: 0.55, blue: 0.30), Color(red: 0.62, green: 0.34, blue: 0.16)]
         case .inTheZone: [Color(red: 0.78, green: 0.82, blue: 0.88), Color(red: 0.50, green: 0.56, blue: 0.66)]
         case .deepWorker: [Color(red: 1.0, green: 0.84, blue: 0.35), Color(red: 0.88, green: 0.62, blue: 0.10)]
