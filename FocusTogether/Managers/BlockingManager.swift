@@ -61,6 +61,17 @@ final class BlockingManager: ObservableObject {
         start(FocusSession(startDate: .now, durationMinutes: minutes, groupName: groupName))
     }
 
+    /// Starts a session asked for by a widget or button: "free" or a number of minutes.
+    /// Does nothing when apps haven't been chosen or a session is already running.
+    func startFromRequest(_ mode: String) {
+        guard activeSession == nil, hasSelection else { return }
+        if mode == "free" {
+            startOpenEndedSession()
+        } else if let minutes = Int(mode), minutes >= 15 {
+            startSession(minutes: minutes)
+        }
+    }
+
     /// Free time: locks until you stop it.
     func startOpenEndedSession() {
         start(FocusSession(openEndedFrom: .now))

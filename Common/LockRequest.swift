@@ -22,12 +22,20 @@ enum LockRequest {
     }
 }
 
-/// Opens Lockin and starts a lock-in: free time, or a set number of minutes.
-struct LockInIntent: AppIntent {
+/// Set by the app at launch: starts the session in the app's own process.
+enum LockRequestHandler {
+    static var handler: ((String) async -> Void)?
+}
+
+/// Starts a lock-in from a widget or Control Center button without bringing Lockin to the front.
+/// As a Live Activity intent it runs inside the app (in the background), where Screen Time can be set up.
+@available(iOS 16.4, *)
+struct LockInIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Lock in"
     static var description = IntentDescription("Starts a Lockin session.")
-    static var openAppWhenRun = true
+    static var openAppWhenRun = false
 
+    /// "free" or a number of minutes.
     @Parameter(title: "Mode")
     var mode: String
 
@@ -36,7 +44,12 @@ struct LockInIntent: AppIntent {
     init(mode: String) { self.mode = mode }
 
     func perform() async throws -> some IntentResult {
-        LockRequest.post(mode)
+        if let handler = LockRequestHandler.handler {
+            await handler(mode)
+        } else {
+            // Not running inside the app: leave a note; Lockin starts the session the next time it opens.
+            LockRequest.post(mode)
+        }
         return .result()
     }
 }

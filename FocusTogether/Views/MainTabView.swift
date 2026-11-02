@@ -72,11 +72,7 @@ extension MainTabView {
         tab = .lock
         guard blocking.activeSession == nil, blocking.hasSelection else { return }
         Haptics.success()
-        if mode == "free" {
-            blocking.startOpenEndedSession()
-        } else if let minutes = Int(mode), minutes >= 15 {
-            blocking.startSession(minutes: minutes)
-        }
+        blocking.startFromRequest(mode)
     }
 
     fileprivate func checkRankUp() {
