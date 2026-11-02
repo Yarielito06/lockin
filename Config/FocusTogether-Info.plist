@@ -4,22 +4,24 @@
 <dict>
 	<key>FTAppGroupIdentifier</key>
 	<string>group.$(BUNDLE_ID_PREFIX).FocusTogether</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Take a photo to share as a moment with your friends.</string>
-	<key>NSSupportsLiveActivities</key>
-	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LockinSupabaseHost</key>
+	<string>$(SUPABASE_HOST)</string>
+	<key>LockinSupabaseKey</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_lockin-near._tcp</string>
 		<string>_lockin-near._udp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo to share as a moment with your friends.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Lockin looks for friends' phones nearby when you use Add nearby.</string>
 	<key>NSNearbyInteractionUsageDescription</key>
 	<string>Lockin senses when your phones are held together, so you can add friends with a tap.</string>
-	<key>LockinSupabaseHost</key>
-	<string>$(SUPABASE_HOST)</string>
-	<key>LockinSupabaseKey</key>
-	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 </dict>
 </plist>
