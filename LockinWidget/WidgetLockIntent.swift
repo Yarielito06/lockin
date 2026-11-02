@@ -22,14 +22,17 @@ struct WidgetLockIntent: AppIntent {
     init(mode: String) { self.mode = mode }
 
     func perform() async throws -> some IntentResult {
+        LockLog.add("widget intent ran, mode=\(mode)")
         // Already locked in: nothing to do.
         if let running = SharedStore.loadSession(), !running.isFinished(at: .now) {
+            LockLog.add("already locked")
             await tell("Already locked in", "Your apps are blocked. Open Lockin to see the timer.")
             return .result()
         }
 
         let selection = SharedStore.loadSelection()
         guard !selection.applicationTokens.isEmpty || !selection.categoryTokens.isEmpty || !selection.webDomainTokens.isEmpty else {
+            LockLog.add("no apps chosen")
             LockRequest.post(mode)   // No apps chosen yet: Lockin will take you to the Lock tab next time.
             await tell("Choose your apps first", "Open Lockin and pick the apps to block, then tap the button again.")
             return .result()
@@ -48,11 +51,14 @@ struct WidgetLockIntent: AppIntent {
         do {
             try schedule(session)
         } catch {
+            LockLog.add("schedule failed: \(error)")
             LockRequest.post(mode)
             await tell("Couldn't start", "iOS wouldn't let the widget set the block (\(error.localizedDescription)). Open Lockin and tap Lock in.")
             return .result()
         }
+        LockLog.add("scheduled ok")
         ShieldController.apply(selection)
+        LockLog.add("shields applied")
         SharedStore.saveSession(session)
 
         if !session.isOpenEnded { await notifyAtEnd(session) }

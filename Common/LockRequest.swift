@@ -20,3 +20,14 @@ enum LockRequest {
         URL(string: "lockin://lock?mode=\(mode)")!
     }
 }
+
+/// A tiny trail of what the widget and app did, kept in the App Group so problems can be traced.
+enum LockLog {
+    private static let key = "lockin.widgetLog"
+
+    static func add(_ text: String) {
+        var lines = AppGroup.defaults.stringArray(forKey: key) ?? []
+        lines.append("\(Date().formatted(date: .omitted, time: .standard)) \(text)")
+        AppGroup.defaults.set(Array(lines.suffix(40)), forKey: key)
+    }
+}

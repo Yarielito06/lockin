@@ -28,6 +28,13 @@ struct LockinApp: App {
         _planner = StateObject(wrappedValue: planner)
         let widgetPublisher = WidgetPublisher(routines: routines, blocking: blocking, history: history, social: social, planner: planner)
         _widgets = StateObject(wrappedValue: widgetPublisher)
+        // Lets a shortcut start a lock-in while the app stays in the background.
+        LockRequestHandler.handler = { mode in
+            await MainActor.run {
+                blocking.startFromRequest(mode)
+                widgetPublisher.publish()
+            }
+        }
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
     }
 

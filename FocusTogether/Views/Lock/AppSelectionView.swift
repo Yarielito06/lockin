@@ -10,6 +10,33 @@ struct AppSelectionView: View {
     private var selection: FamilyActivitySelection { blocking.selection }
 
     var body: some View {
+        if BlockingManager.isOnMac {
+            macNote
+        } else {
+            picker
+        }
+    }
+
+    /// Macs can't block apps with Screen Time, so say so kindly instead of showing an empty picker.
+    private var macNote: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "iphone.gen3")
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 40, height: 40)
+                .background(Theme.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Focus timer on Mac")
+                    .font(.subheadline.weight(.semibold))
+                Text("Apps are blocked on your iPhone. Here, Lockin counts your time and shows your friends you're locked in.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .card(padding: 14)
+    }
+
+    private var picker: some View {
         Button {
             isPickerPresented = true
         } label: {

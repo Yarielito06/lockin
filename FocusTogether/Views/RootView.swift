@@ -15,6 +15,8 @@ struct RootView: View {
         // Screen Time can't be authorized in the Simulator; this flag lets the UI be previewed there.
         if ProcessInfo.processInfo.arguments.contains("-previewUI") { return true }
         #endif
+        // Macs have no Screen Time blocking: go straight in.
+        if BlockingManager.isOnMac { return true }
         return blocking.authorizationStatus == .approved
     }
 

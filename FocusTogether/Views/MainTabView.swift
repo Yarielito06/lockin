@@ -69,6 +69,7 @@ struct MainTabView: View {
 extension MainTabView {
     /// Starts a session straight away; with no apps chosen yet it just shows the Lock tab so you can pick some.
     fileprivate func startFromOutside(_ mode: String) {
+        LockLog.add("app handling request mode=\(mode)")
         tab = .lock
         guard blocking.activeSession == nil, blocking.hasSelection else { return }
         Haptics.success()

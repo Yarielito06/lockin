@@ -35,8 +35,13 @@ final class BlockingManager: ObservableObject {
         if activeSession == nil { LiveActivityController.end() }
     }
 
+    /// The iPhone app running on a Mac. Screen Time can't block anything there, so a lock-in
+    /// is a focus timer that still counts, ranks up and shows your friends you're locked in.
+    static let isOnMac = ProcessInfo.processInfo.isiOSAppOnMac
+
     var hasSelection: Bool {
-        !selection.applicationTokens.isEmpty
+        if Self.isOnMac { return true }
+        return !selection.applicationTokens.isEmpty
             || !selection.categoryTokens.isEmpty
             || !selection.webDomainTokens.isEmpty
     }
@@ -91,14 +96,15 @@ final class BlockingManager: ObservableObject {
 
         // Schedule first: if the schedule can't be created, the shields would never lift
         // on their own once the app is killed, so don't apply them at all.
-        do {
-            try scheduleMonitoring(for: session)
-        } catch {
-            errorMessage = "Couldn't schedule the session. \(error.localizedDescription)"
-            return
+        if !Self.isOnMac {
+            do {
+                try scheduleMonitoring(for: session)
+            } catch {
+                errorMessage = "Couldn't schedule the session. \(error.localizedDescription)"
+                return
+            }
+            ShieldController.apply(selection)
         }
-
-        ShieldController.apply(selection)
         SharedStore.saveSession(session)
         activeSession = session
         LiveActivityController.start(session)
