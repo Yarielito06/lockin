@@ -29,6 +29,8 @@ enum LiveActivityController {
         }
     }
 
+    static var isRunning: Bool { !LockinActivity.activities.isEmpty }
+
     static func end() {
         Task { await endAll() }
     }

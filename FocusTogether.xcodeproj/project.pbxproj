@@ -224,6 +224,7 @@
 			fileSystemSynchronizedGroups = (
 				F0C000000000000000000015,
 				F0C000000000000000000014,
+				F0C000000000000000000011,
 			);
 			name = LockinWidget;
 			packageProductDependencies = (

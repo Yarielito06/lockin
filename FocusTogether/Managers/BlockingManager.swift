@@ -113,6 +113,11 @@ final class BlockingManager: ObservableObject {
 
     /// Ends the session if its time is up. Call when the countdown hits zero and when the app becomes active.
     func refresh(now: Date = .now) {
+        // A session started from a widget while the app wasn't looking.
+        if activeSession == nil, let stored = SharedStore.loadSession(), !stored.isFinished(at: now) {
+            activeSession = stored
+            resumeStartedElsewhere(stored)
+        }
         guard let session = activeSession else { return }
         if session.isOpenEnded {
             extendOpenEndedIfNeeded(session, now: now)
@@ -123,6 +128,11 @@ final class BlockingManager: ObservableObject {
         activeSession = nil
         history.record(session)
         completedSession = session
+    }
+
+    /// What the widget can't do itself: the Live Activity, which needs the app.
+    private func resumeStartedElsewhere(_ session: FocusSession) {
+        if !LiveActivityController.isRunning { LiveActivityController.start(session) }
     }
 
     /// Stops a free-time session: unlocks, records the time actually spent and celebrates.

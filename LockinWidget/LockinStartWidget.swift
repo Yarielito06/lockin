@@ -30,7 +30,7 @@ private struct LockButton<Content: View>: View {
 
     var body: some View {
         if #available(iOS 17.0, *) {
-            Button(intent: LockInIntent(mode: mode)) { content }
+            Button(intent: WidgetLockIntent(mode: mode)) { content }
                 .buttonStyle(.plain)
         } else {
             Link(destination: LockRequest.url(mode)) { content }
@@ -257,7 +257,7 @@ private extension View {
 struct LockinControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "LockinControl") {
-            ControlWidgetButton(action: LockInIntent(mode: "free")) {
+            ControlWidgetButton(action: WidgetLockIntent(mode: "free")) {
                 Label("Lock in", systemImage: "lock.fill")
             }
         }
