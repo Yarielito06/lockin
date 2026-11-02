@@ -2,51 +2,69 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// The menu-bar timer.
-struct MenuBarLabel: View {
-    @EnvironmentObject private var focus: MacFocus
+/// The menu-bar item: a lock that shows the live timer while you're locked in, with a quick menu.
+@MainActor
+final class StatusItemController: NSObject, NSMenuDelegate {
+    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let focus: MacFocus
+    private var cancellable: AnyCancellable?
+    private var timer: Timer?
 
-    var body: some View {
-        if focus.isActive, let start = focus.startDate {
-            HStack(spacing: 4) {
-                Image(systemName: "lock.fill")
-                if let end = focus.endDate { Text(end, style: .timer).monospacedDigit() } else { Text(start, style: .timer).monospacedDigit() }
-            }
-        } else {
-            Image(systemName: "lock.open")
+    init(focus: MacFocus) {
+        self.focus = focus
+        super.init()
+        let menu = NSMenu()
+        menu.delegate = self
+        item.menu = menu
+        refresh()
+        cancellable = focus.$startDate.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.refresh() }
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
         }
+    }
+
+    private func refresh() {
+        guard let button = item.button else { return }
+        button.image = NSImage(systemSymbolName: focus.isActive ? "lock.fill" : "lock.open", accessibilityDescription: "Lockin")
+        if focus.isActive {
+            let seconds = focus.isFree ? focus.elapsed() : focus.remaining()
+            button.title = " " + formatClock(seconds)
+        } else {
+            button.title = ""
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        if focus.isActive {
+            add(menu, focus.isFree ? "Stop and save" : "End session") { [focus] in focus.stop() }
+        } else {
+            add(menu, "Lock in — free time") { [focus] in focus.start(minutes: nil) }
+            for minutes in [25, 50, 90] { add(menu, "Lock in — \(minutes) minutes") { [focus] in focus.start(minutes: minutes) } }
+        }
+        menu.addItem(.separator())
+        add(menu, "Open Lockin") { MacAppDelegate.ensureWindow() }
+        add(menu, "Quit Lockin") { NSApp.terminate(nil) }
+    }
+
+    private func add(_ menu: NSMenu, _ title: String, _ action: @escaping () -> Void) {
+        let entry = ClosureMenuItem(title: title, action: action)
+        menu.addItem(entry)
     }
 }
 
-struct MenuBarContent: View {
-    @EnvironmentObject private var focus: MacFocus
-    @Environment(\.openWindow) private var openWindow
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if focus.isActive {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(focus.isFree ? formatClock(focus.elapsed(at: context.date)) : formatClock(focus.remaining(at: context.date)))
-                        .font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
-                }
-                Button(focus.isFree ? "Stop and save" : "End session") { focus.stop() }
-            } else {
-                Text("Lockin").font(.headline)
-                Button("Lock in — free time") { focus.start(minutes: nil) }
-                HStack {
-                    ForEach([25, 50, 90], id: \.self) { m in Button("\(m) min") { focus.start(minutes: m) } }
-                }
-            }
-            Divider()
-            Button("Open Lockin") {
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "main")
-            }
-            Button("Quit") { NSApp.terminate(nil) }
-        }
-        .padding(16)
-        .frame(width: 240)
+    init(title: String, action: @escaping () -> Void) {
+        handler = action
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
     }
+
+    required init(coder: NSCoder) { fatalError() }
+
+    @objc private func run() { handler() }
 }
 
 /// A floating pill at the top of the screen while you're locked in, like an island.

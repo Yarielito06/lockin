@@ -1,7 +1,38 @@
 import SwiftUI
 
+
+/// Makes sure a window is on screen at launch and when you click the Dock icon.
+final class MacAppDelegate: NSObject, NSApplicationDelegate {
+    static var focus: MacFocus?
+    private var statusItem: StatusItemController?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        if let focus = Self.focus { statusItem = StatusItemController(focus: focus) }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { Self.ensureWindow() }
+        return true
+    }
+
+    private static func hasWindow() -> Bool {
+        NSApp.windows.contains { $0.isVisible && $0.canBecomeMain && $0.frame.width > 300 }
+    }
+
+    /// Brings the main window forward, asking macOS to "reopen" the app if it was closed.
+    static func ensureWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.canBecomeMain && $0.frame.width > 300 }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            NSWorkspace.shared.open(Bundle.main.bundleURL)
+        }
+    }
+}
+
 @main
 struct LockinMacApp: App {
+    @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
     @StateObject private var history: HistoryStore
     @StateObject private var routines: RoutineStore
     @StateObject private var planner: PlannerStore
@@ -18,10 +49,11 @@ struct LockinMacApp: App {
         _planner = StateObject(wrappedValue: PlannerStore())
         _focus = StateObject(wrappedValue: focus)
         island = IslandController(focus: focus)
+        MacAppDelegate.focus = focus
     }
 
     var body: some Scene {
-        WindowGroup("Lockin", id: "main") {
+        Window("Lockin", id: "main") {
             MacRootView()
                 .environmentObject(history)
                 .environmentObject(routines)
@@ -34,12 +66,5 @@ struct LockinMacApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1240, height: 800)
 
-        MenuBarExtra {
-            MenuBarContent()
-                .environmentObject(focus)
-        } label: {
-            MenuBarLabel().environmentObject(focus)
-        }
-        .menuBarExtraStyle(.window)
     }
 }
