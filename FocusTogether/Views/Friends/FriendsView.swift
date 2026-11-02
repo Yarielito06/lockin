@@ -34,6 +34,8 @@ struct FriendsView: View {
 
                     PendingSection()
 
+                    ChallengesSection()
+
                     TimelineView(.periodic(from: .now, by: 30)) { context in
                         let focusing = social.friendsFocusing(at: context.date)
                         if !focusing.isEmpty {

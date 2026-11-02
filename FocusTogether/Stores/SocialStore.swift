@@ -29,6 +29,8 @@ final class SocialStore: ObservableObject {
     @Published private(set) var outgoingRequests: [PersonRef] = []
     /// Groups you've been invited to but haven't answered.
     @Published private(set) var groupInvites: [StudyGroup] = []
+    /// This week's shared goals for your groups.
+    @Published private(set) var challenges: [GroupChallenge] = []
 
     /// Your profile on the server; nil until signed in and named.
     @Published private(set) var me: ProfileRow?
@@ -174,7 +176,10 @@ final class SocialStore: ObservableObject {
         do {
             async let friendRows: [ProfileRow] = client.rpc("my_friends").execute().value
             async let social: SocialSnapshot = client.rpc("my_social").execute().value
+            async let challengeRows: [GroupChallenge] = client.rpc("my_challenges").execute().value
             let (rows, snapshot) = try await (friendRows, social)
+            // Challenges are optional: if that call fails the rest still loads.
+            challenges = ((try? await challengeRows) ?? []).filter(\.isCurrentWeek)
             friends = rows.map(\.asFriend)
             incomingRequests = snapshot.incoming
             outgoingRequests = snapshot.outgoing
@@ -270,6 +275,28 @@ final class SocialStore: ObservableObject {
     func publishCurrent() async {
         guard let blocking, let history else { return }
         await publish(session: blocking.activeSession, weekMinutes: history.weekMinutes, streak: history.streakDays, totalMinutes: history.totalMinutes)
+    }
+
+    // MARK: Challenges
+
+    /// Starts a shared weekly goal for a group. Returns an error message, or nil.
+    func startChallenge(in group: StudyGroup, title: String, hours: Int) async -> String? {
+        guard let client = Backend.client else { return "Challenges need an internet connection." }
+        struct Params: Encodable { let gid: UUID; let challenge_title: String; let minutes: Int; let week: String }
+        do {
+            try await client.rpc("set_group_challenge", params: Params(gid: group.id, challenge_title: title, minutes: hours * 60, week: Backend.currentWeekKey())).execute()
+            await refresh()
+            return nil
+        } catch {
+            return (error as? PostgrestError)?.message ?? "Couldn't start the challenge."
+        }
+    }
+
+    func endChallenge(_ challenge: GroupChallenge) async {
+        guard let client = Backend.client else { return }
+        challenges.removeAll { $0.id == challenge.id }
+        _ = try? await client.rpc("clear_group_challenge", params: ["gid": challenge.groupID]).execute()
+        await refresh()
     }
 
     // MARK: Live updates
