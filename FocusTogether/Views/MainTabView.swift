@@ -18,17 +18,23 @@ struct MainTabView: View {
 
     var body: some View {
         // A VStack (not safeAreaInset) so each tab's own bottom insets sit above the bar.
-        VStack(spacing: 0) {
-            ZStack {
-                switch tab {
-                case .today: TodayView()
-                case .lock: LockView()
-                case .friends: FriendsView()
+        Group {
+            if BlockingManager.isOnMac {
+                MacShell(tab: $tab)
+            } else {
+                VStack(spacing: 0) {
+                    ZStack {
+                        switch tab {
+                        case .today: TodayView()
+                        case .lock: LockView()
+                        case .friends: FriendsView()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    LockinTabBar(selection: $tab)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            LockinTabBar(selection: $tab)
         }
         // A lock-in asked for from a widget, the lock screen or Control Center.
         .onOpenURL { url in

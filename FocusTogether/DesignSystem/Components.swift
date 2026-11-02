@@ -6,10 +6,18 @@ private struct CardModifier: ViewModifier {
     var padding: CGFloat
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+            .background {
+                if BlockingManager.isOnMac {
+                    // Frosted glass on the Mac, over the soft colour behind it.
+                    shape.fill(.thinMaterial).overlay(shape.strokeBorder(.white.opacity(0.10), lineWidth: 1))
+                } else {
+                    shape.fill(Theme.surface)
+                }
+            }
     }
 }
 

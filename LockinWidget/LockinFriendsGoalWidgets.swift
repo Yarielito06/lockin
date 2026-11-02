@@ -51,7 +51,7 @@ struct LockinFriendsWidget: Widget {
         }
         .configurationDisplayName("Friends locked in")
         .description("See who's locked in right now.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -88,7 +88,7 @@ struct FriendsWidgetView: View {
 
     var body: some View {
         Group {
-            if family == .systemMedium { medium } else { small }
+            if family == .systemMedium || family == .systemLarge { medium } else { small }
         }
         .widgetBackground()
     }
@@ -160,7 +160,7 @@ struct FriendsWidgetView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     header
-                    ForEach(friends.prefix(3)) { friend in
+                    ForEach(friends.prefix(family == .systemLarge ? 7 : 3)) { friend in
                         HStack(spacing: 10) {
                             WidgetAvatar(name: friend.name, id: friend.id, size: 30)
                             Text(friend.name)
@@ -192,7 +192,7 @@ struct LockinGoalWidget: Widget {
         }
         .configurationDisplayName("Goal countdown")
         .description("Days until your goal, and what's coming up.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
 
@@ -212,7 +212,7 @@ struct GoalWidgetView: View {
         switch family {
         case .accessoryCircular: circular
         case .accessoryRectangular: rectangular
-        case .systemMedium: medium
+        case .systemMedium, .systemLarge: medium
         default: small
         }
     }
@@ -293,7 +293,7 @@ struct GoalWidgetView: View {
                         if upcoming.isEmpty {
                             Text("Nothing else planned").font(.caption).opacity(0.85)
                         }
-                        ForEach(upcoming.prefix(3)) { item in
+                        ForEach(upcoming.prefix(family == .systemLarge ? 4 : 3)) { item in
                             HStack(spacing: 8) {
                                 Image(systemName: item.symbol).font(.caption2)
                                 VStack(alignment: .leading, spacing: 0) {
