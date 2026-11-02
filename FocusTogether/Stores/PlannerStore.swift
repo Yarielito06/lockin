@@ -26,9 +26,13 @@ final class PlannerStore: ObservableObject {
 
     // MARK: Reading
 
+    /// Everything that covers a day: periods first, then single items by time.
     func items(on date: Date) -> [PlanItem] {
-        items.filter { calendar.isDate($0.date, inSameDayAs: date) }
-            .sorted { ($0.hasTime ? $0.date : calendar.startOfDay(for: $0.date)) < ($1.hasTime ? $1.date : calendar.startOfDay(for: $1.date)) }
+        func sortKey(_ item: PlanItem) -> Date { item.hasTime ? item.date : calendar.startOfDay(for: item.date) }
+        return items.filter { $0.covers(date) }.sorted {
+            if $0.isPeriod != $1.isPeriod { return $0.isPeriod }
+            return sortKey($0) < sortKey($1)
+        }
     }
 
     func goals(on date: Date) -> [Goal] {
@@ -47,8 +51,8 @@ final class PlannerStore: ObservableObject {
     func upcoming(limit: Int = 8, now: Date = .now) -> [UpcomingEntry] {
         let today = calendar.startOfDay(for: now)
         var entries: [UpcomingEntry] = items
-            .filter { !$0.isDone && calendar.startOfDay(for: $0.date) >= today.addingTimeInterval(-7 * 86_400) }
-            .map { UpcomingEntry(id: $0.id, title: $0.title, date: $0.date, symbol: $0.kind.symbol, color: $0.kind.color, isGoal: false, item: $0, goal: nil) }
+            .filter { !$0.isDone && $0.lastDay >= today.addingTimeInterval(-7 * 86_400) }
+            .map { UpcomingEntry(id: $0.id, title: $0.title, date: $0.date, endDate: $0.endDate, symbol: $0.kind.symbol, color: $0.kind.color, isGoal: false, item: $0, goal: nil) }
         entries += activeGoals.map {
             UpcomingEntry(id: $0.id, title: $0.title, date: $0.targetDate, symbol: $0.symbol, color: Theme.accent, isGoal: true, item: nil, goal: $0)
         }
@@ -60,6 +64,11 @@ final class PlannerStore: ObservableObject {
     func save(_ item: PlanItem) {
         var item = item
         if !item.hasTime { item.date = calendar.startOfDay(for: item.date) }
+        // A period always ends on or after its first day.
+        if let end = item.endDate {
+            let endDay = calendar.startOfDay(for: end)
+            item.endDate = endDay > calendar.startOfDay(for: item.date) ? endDay : nil
+        }
         if let index = items.firstIndex(where: { $0.id == item.id }) { items[index] = item } else { items.append(item) }
     }
 

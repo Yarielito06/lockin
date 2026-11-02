@@ -125,10 +125,17 @@ struct PlanItemEditorView: View {
     @State private var kind: PlanKind = .deadline
     @State private var date = Date.now
     @State private var hasTime = false
+    @State private var hasEnd = false
+    @State private var endDate = Date.now
     @State private var note = ""
     @State private var isConfirmingDelete = false
 
     private var trimmed: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var dayCount: Int {
+        let calendar = Calendar.current
+        return max(1, (calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: endDate)).day ?? 0) + 1)
+    }
 
     var body: some View {
         NavigationStack {
@@ -162,12 +169,34 @@ struct PlanItemEditorView: View {
                         }
                     }
 
-                    field("When") {
+                    field(hasEnd ? "From" : "When") {
                         VStack(spacing: 0) {
                             DatePicker("Date", selection: $date, displayedComponents: .date)
                                 .datePickerStyle(.graphical)
                                 .tint(kind.color)
                                 .padding(10)
+                                .onChange(of: date) { newDate in
+                                    if endDate < newDate { endDate = newDate }
+                                }
+                            Divider().padding(.horizontal, 14)
+                            Toggle("It runs over several days", isOn: $hasEnd.animation(Theme.spring))
+                                .tint(kind.color)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                            if hasEnd {
+                                HStack {
+                                    DatePicker("Until", selection: $endDate, in: date..., displayedComponents: .date)
+                                        .tint(kind.color)
+                                    Text("\(dayCount) \(dayCount == 1 ? "day" : "days")")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(kind.color)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(kind.color.opacity(0.14), in: Capsule())
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 10)
+                            }
                             Divider().padding(.horizontal, 14)
                             Toggle("Add a time", isOn: $hasTime.animation(Theme.spring))
                                 .tint(kind.color)
@@ -189,7 +218,7 @@ struct PlanItemEditorView: View {
                             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
 
-                    Text("You'll get a reminder on the day, and the evening before a deadline or exam.")
+                    Text("You'll get a reminder on the day, and the evening before a deadline or exam ends.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -227,8 +256,15 @@ struct PlanItemEditorView: View {
                     date = item.date
                     hasTime = item.hasTime
                     note = item.note
+                    if item.isPeriod, let end = item.endDate {
+                        hasEnd = true
+                        endDate = end
+                    } else {
+                        endDate = item.date
+                    }
                 } else {
                     date = startDate
+                    endDate = Calendar.current.date(byAdding: .day, value: 4, to: startDate) ?? startDate
                 }
             }
         }
@@ -241,6 +277,7 @@ struct PlanItemEditorView: View {
         new.kind = kind
         new.date = date
         new.hasTime = hasTime
+        new.endDate = hasEnd ? endDate : nil
         new.note = note
         planner.save(new)
         Haptics.success()

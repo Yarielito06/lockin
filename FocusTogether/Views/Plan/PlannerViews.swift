@@ -131,49 +131,118 @@ private extension View {
 
 // MARK: - Upcoming
 
-/// The next few things on your plan, soonest first.
+/// What's coming, grouped by week so a long list stays calm: Overdue, This week, Next week, Later.
 struct UpcomingList: View {
     @EnvironmentObject private var planner: PlannerStore
     var onEditItem: (PlanItem) -> Void
     var onEditGoal: (Goal) -> Void
 
+    @State private var showAll = false
+    private let collapsedCount = 6
+    private let calendar = Calendar.current
+
+    private struct Section: Identifiable {
+        let title: String
+        let entries: [UpcomingEntry]
+        var id: String { title }
+    }
+
     var body: some View {
-        let entries = planner.upcoming()
-        if !entries.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+        let all = planner.upcoming(limit: 60)
+        if !all.isEmpty {
+            let shown = showAll ? all : Array(all.prefix(collapsedCount))
+            VStack(alignment: .leading, spacing: 16) {
                 SectionTitle("Coming up")
-                VStack(spacing: 0) {
-                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        if index > 0 { Divider().padding(.leading, 56) }
-                        Button {
-                            if let item = entry.item { onEditItem(item) } else if let goal = entry.goal { onEditGoal(goal) }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: entry.symbol)
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(entry.color)
-                                    .frame(width: 38, height: 38)
-                                    .background(entry.color.opacity(0.14), in: Circle())
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                                    Text(entry.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(entry.relativeLabel())
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(entry.relativeLabel().hasSuffix("ago") ? Color.red : Color.secondary)
+                ForEach(sections(for: shown)) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(section.title.uppercased())
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(section.title == "Overdue" ? Color.red : Color.secondary)
+                            .padding(.leading, 4)
+                        VStack(spacing: 0) {
+                            ForEach(Array(section.entries.enumerated()), id: \.element.id) { index, entry in
+                                if index > 0 { Divider().padding(.leading, 58) }
+                                row(entry)
                             }
-                            .padding(.vertical, 10)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .card(padding: 12)
                     }
                 }
-                .card(padding: 14)
+                if all.count > collapsedCount {
+                    Button {
+                        Haptics.select()
+                        withAnimation(Theme.spring) { showAll.toggle() }
+                    } label: {
+                        Text(showAll ? "Show less" : "Show \(all.count - collapsedCount) more")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .animation(Theme.spring, value: showAll)
         }
+    }
+
+    private func sections(for entries: [UpcomingEntry]) -> [Section] {
+        let today = calendar.startOfDay(for: .now)
+        let thisWeek = calendar.dateInterval(of: .weekOfYear, for: today)
+        let nextWeekStart = thisWeek?.end ?? today
+        let nextWeekEnd = calendar.date(byAdding: .day, value: 7, to: nextWeekStart) ?? nextWeekStart
+
+        func bucket(_ entry: UpcomingEntry) -> String {
+            let end = entry.item?.lastDay ?? calendar.startOfDay(for: entry.date)
+            if end < today { return "Overdue" }
+            // A period under way counts for the week it ends in.
+            if end < nextWeekStart { return "This week" }
+            if end < nextWeekEnd { return "Next week" }
+            return "Later"
+        }
+        return ["Overdue", "This week", "Next week", "Later"].compactMap { title in
+            let items = entries.filter { bucket($0) == title }
+            return items.isEmpty ? nil : Section(title: title, entries: items)
+        }
+    }
+
+    private func row(_ entry: UpcomingEntry) -> some View {
+        Button {
+            if let item = entry.item { onEditItem(item) } else if let goal = entry.goal { onEditGoal(goal) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: entry.symbol)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(entry.color)
+                    .frame(width: 34, height: 34)
+                    .background(entry.color.opacity(0.14), in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(entry.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    HStack(spacing: 6) {
+                        if entry.isPeriod {
+                            Image(systemName: "arrow.left.and.right").font(.system(size: 9, weight: .bold)).foregroundStyle(entry.color)
+                        }
+                        Text(entry.dateLabel).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let progress = entry.progress() {
+                        GeometryReader { geo in
+                            Capsule().fill(entry.color.opacity(0.15))
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(entry.color).frame(width: max(6, geo.size.width * progress))
+                                }
+                        }
+                        .frame(height: 4)
+                        .frame(maxWidth: 120)
+                    }
+                }
+                Spacer(minLength: 8)
+                Text(entry.relativeLabel())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(entry.relativeLabel().hasSuffix("ago") ? Color.red : (entry.relativeLabel().hasPrefix("Ends") ? entry.color : Color.secondary))
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -186,6 +255,16 @@ struct DayPlan: View {
     var onAdd: () -> Void
 
     @EnvironmentObject private var planner: PlannerStore
+
+    private func subtitle(for item: PlanItem) -> String {
+        if item.isPeriod {
+            let calendar = Calendar.current
+            let n = (calendar.dateComponents([.day], from: calendar.startOfDay(for: item.date), to: calendar.startOfDay(for: date)).day ?? 0) + 1
+            let tail = calendar.isDate(date, inSameDayAs: item.lastDay) ? "last day" : "day \(n) of \(item.dayCount)"
+            return "\(item.kind.title) · \(item.dateLabel) · \(tail)"
+        }
+        return item.hasTime ? "\(item.kind.title) · \(item.date.formatted(date: .omitted, time: .shortened))" : item.kind.title
+    }
 
     var body: some View {
         let items = planner.items(on: date)
@@ -237,7 +316,7 @@ struct DayPlan: View {
                                     .foregroundStyle(item.isDone ? .secondary : .primary)
                                 HStack(spacing: 6) {
                                     Image(systemName: item.kind.symbol).font(.caption2).foregroundStyle(item.kind.color)
-                                    Text(item.hasTime ? "\(item.kind.title) · \(item.date.formatted(date: .omitted, time: .shortened))" : item.kind.title)
+                                    Text(subtitle(for: item))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

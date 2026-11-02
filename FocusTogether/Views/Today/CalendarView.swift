@@ -252,21 +252,27 @@ struct CalendarView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Helpers
-
-    /// Small dots for things planned on a day: a goal's day, and each kind of item.
+    /// Under a day's number: a dot for each single item, a bar for each period it falls in, a flag for a goal.
     @ViewBuilder
     private func planDots(for day: Date, onHeat: Bool = false) -> some View {
-        let kinds = Set(planner.items(on: day).filter { !$0.isDone }.map(\.kind))
-        let hasGoal = planner.hasGoal(on: day)
+        let items = planner.items(on: day).filter { !$0.isDone }
+        let periods = items.filter(\.isPeriod).prefix(2)
+        let singles = items.filter { !$0.isPeriod }.prefix(3 - periods.count)
         HStack(spacing: 3) {
-            if hasGoal { Image(systemName: "flag.fill").font(.system(size: 6)).foregroundStyle(onHeat ? Color.primary : Theme.accent) }
-            ForEach(PlanKind.allCases.filter { kinds.contains($0) }.prefix(3)) { kind in
-                Circle().fill(kind.color).frame(width: 5, height: 5)
+            if planner.hasGoal(on: day) {
+                Image(systemName: "flag.fill").font(.system(size: 6)).foregroundStyle(onHeat ? Color.primary : Theme.accent)
+            }
+            ForEach(Array(periods)) { item in
+                Capsule().fill(item.kind.color).frame(width: 12, height: 3.5)
+            }
+            ForEach(Array(singles)) { item in
+                Circle().fill(item.kind.color).frame(width: 5, height: 5)
             }
         }
         .frame(height: 6)
     }
+
+    // MARK: Helpers
 
     private func select(_ day: Date) {
         Haptics.select()

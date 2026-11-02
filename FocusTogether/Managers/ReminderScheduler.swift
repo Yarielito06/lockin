@@ -124,10 +124,13 @@ enum ReminderScheduler {
 
         for item in items where !item.isDone {
             add("\(item.id).day", title: "\(item.kind.title): \(item.title)", body: item.hasTime ? "Today at \(item.date.formatted(date: .omitted, time: .shortened))" : "Due today", at: item.fireDate)
+            if item.isPeriod, let morning = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: item.lastDay) {
+                add("\(item.id).end", title: "Last day: \(item.title)", body: "The \(item.kind.title.lowercased()) period ends today.", at: morning)
+            }
             if item.kind == .deadline || item.kind == .exam,
-               let eve = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: item.date)),
+               let eve = calendar.date(byAdding: .day, value: -1, to: item.lastDay),
                let evening = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: eve) {
-                add("\(item.id).eve", title: "Tomorrow: \(item.title)", body: "Your \(item.kind.title.lowercased()) is tomorrow. Lock in tonight?", at: evening)
+                add("\(item.id).eve", title: "Tomorrow: \(item.title)", body: item.isPeriod ? "Your \(item.kind.title.lowercased()) ends tomorrow. Lock in tonight?" : "Your \(item.kind.title.lowercased()) is tomorrow. Lock in tonight?", at: evening)
             }
         }
         for goal in goals {

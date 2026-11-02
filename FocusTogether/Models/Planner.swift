@@ -44,6 +44,37 @@ struct PlanItem: Identifiable, Codable, Equatable {
     var hasTime = false
     var note = ""
     var isDone = false
+    /// For a period (like "submit between 9 and 13 Nov"): the last day, start of day. nil for a single day.
+    var endDate: Date?
+
+    var isPeriod: Bool {
+        guard let endDate else { return false }
+        return Calendar.current.startOfDay(for: endDate) > Calendar.current.startOfDay(for: date)
+    }
+
+    /// The last day it covers.
+    var lastDay: Date { Calendar.current.startOfDay(for: endDate ?? date) }
+
+    /// Number of days it covers.
+    var dayCount: Int {
+        let calendar = Calendar.current
+        return (calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: lastDay).day ?? 0) + 1
+    }
+
+    func covers(_ day: Date) -> Bool {
+        let calendar = Calendar.current
+        let d = calendar.startOfDay(for: day)
+        return d >= calendar.startOfDay(for: date) && d <= lastDay
+    }
+
+    /// "Thu 13 Nov", or "9 – 13 Nov" for a period.
+    var dateLabel: String {
+        let calendar = Calendar.current
+        guard isPeriod else { return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) }
+        let sameMonth = calendar.isDate(date, equalTo: lastDay, toGranularity: .month)
+        let start = sameMonth ? date.formatted(.dateTime.day()) : date.formatted(.dateTime.day().month(.abbreviated))
+        return "\(start) – \(lastDay.formatted(.dateTime.day().month(.abbreviated)))"
+    }
 
     /// The moment to remind you.
     var fireDate: Date {
@@ -85,16 +116,44 @@ struct UpcomingEntry: Identifiable {
     let id: UUID
     let title: String
     let date: Date
+    /// Last day, for periods.
+    var endDate: Date?
     let symbol: String
     let color: Color
     let isGoal: Bool
     let item: PlanItem?
     let goal: Goal?
 
-    /// "Today", "Tomorrow", "In 5 days".
+    var isPeriod: Bool { item?.isPeriod ?? false }
+
+    /// "Thu 13 Nov" or "9 – 13 Nov".
+    var dateLabel: String {
+        item?.dateLabel ?? date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    }
+
+    /// 0...1 through a period that's under way; nil otherwise.
+    func progress(now: Date = .now) -> Double? {
+        guard let item, item.isPeriod else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard item.covers(today) else { return nil }
+        let elapsed = calendar.dateComponents([.day], from: calendar.startOfDay(for: item.date), to: today).day ?? 0
+        return Double(elapsed + 1) / Double(item.dayCount)
+    }
+
+    /// "Today", "Tomorrow", "In 5 days", or for a period under way "Ends in 3 days".
     func relativeLabel(now: Date = .now) -> String {
         let calendar = Calendar.current
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
+        let today = calendar.startOfDay(for: now)
+        if let item, item.isPeriod, item.covers(today) {
+            let left = calendar.dateComponents([.day], from: today, to: item.lastDay).day ?? 0
+            switch left {
+            case 0: return "Ends today"
+            case 1: return "Ends tomorrow"
+            default: return "Ends in \(left) days"
+            }
+        }
+        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: date)).day ?? 0
         switch days {
         case ..<0: return "\(-days)d ago"
         case 0: return "Today"
