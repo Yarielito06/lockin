@@ -9,6 +9,11 @@ struct MainTabView: View {
     @State private var tab: MainTab = .lock
     @EnvironmentObject private var social: SocialStore
     @EnvironmentObject private var avatars: AvatarStore
+    @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var blocking: BlockingManager
+    /// The highest rank we've already celebrated (-1 until the first launch records it).
+    @AppStorage("lockin.celebratedRank") private var celebratedRank = -1
+    @State private var rankUp: FocusRank?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -25,6 +30,11 @@ struct MainTabView: View {
 
             LockinTabBar(selection: $tab)
         }
+        // Celebrate a new rank, once the session celebration (if any) is out of the way.
+        .onAppear { checkRankUp() }
+        .onChange(of: history.totalMinutes) { _ in checkRankUp() }
+        .onChange(of: blocking.completedSession?.id) { _ in checkRankUp() }
+        .fullScreenCover(item: $rankUp) { RankUpView(rank: $0) }
         // Load a friend's photo as soon as they set or change it.
         .onChange(of: social.friends.map(\.avatarPath)) { _ in
             Task { await avatars.sync(me: social.me, friends: social.friends) }
@@ -42,6 +52,20 @@ struct MainTabView: View {
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
             }
         }
+    }
+}
+
+extension MainTabView {
+    fileprivate func checkRankUp() {
+        let current = FocusRank.rank(forMinutes: history.totalMinutes)
+        guard celebratedRank >= 0 else {
+            // First run with ranks: start from where you are, no fanfare for old progress.
+            celebratedRank = current.rawValue
+            return
+        }
+        guard current.rawValue > celebratedRank, blocking.completedSession == nil, rankUp == nil else { return }
+        celebratedRank = current.rawValue
+        rankUp = current
     }
 }
 
