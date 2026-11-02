@@ -4,6 +4,7 @@ import SwiftUI
 struct FriendsView: View {
     @EnvironmentObject private var social: SocialStore
     @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var avatars: AvatarStore
     @State private var isAddingFriend = false
     @State private var isShowingMyCard = false
     @State private var selectedFriend: Friend?
@@ -91,41 +92,19 @@ struct FriendsView: View {
     // MARK: Sections
 
     private var meCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 12) {
-                MyAvatar(size: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("You").font(.headline)
-                    Text(social.me.map { "\($0.displayName) · \($0.inviteCode)" }
-                        ?? (history.streakDays > 0 ? "On a \(history.streakDays)-day streak" : "Lock in today to start a streak"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if social.me != nil {
-                    Label("My card", systemImage: "rectangle.portrait.on.rectangle.portrait")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Theme.accent.opacity(0.12), in: Capsule())
-                }
-            }
-            HStack(spacing: 0) {
-                stat(history.todayMinutes.minutesLabel, "Today")
-                Divider().frame(height: 32)
-                stat(history.weekMinutes.minutesLabel, "This week")
-                Divider().frame(height: 32)
-                stat("\(history.streakDays)", "Day streak", symbol: "flame.fill", lit: history.streakDays > 0)
-            }
-        }
-        .card(padding: 20)
+        MeCardHeader(
+            info: .mine(social: social, history: history, avatars: avatars),
+            todayMinutes: history.todayMinutes
+        )
         .contentShape(Rectangle())
         .onTapGesture {
             guard social.me != nil else { return }
             Haptics.tap()
             isShowingMyCard = true
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens your card")
+        .accessibilityAddTraits(.isButton)
     }
 
     private func stat(_ value: String, _ label: String, symbol: String? = nil, lit: Bool = true) -> some View {

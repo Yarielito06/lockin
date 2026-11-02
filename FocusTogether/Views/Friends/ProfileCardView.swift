@@ -36,6 +36,32 @@ struct ProfileCardInfo {
     }
 }
 
+extension ProfileCardInfo {
+    /// Your own card's info, from your stats and profile.
+    @MainActor
+    static func mine(social: SocialStore, history: HistoryStore, avatars: AvatarStore) -> ProfileCardInfo {
+        let calendar = Calendar.current
+        let start = calendar.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+        // Monday-first, whatever the locale's first weekday is.
+        var monday = [Int](repeating: 0, count: 7)
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let slot = (calendar.component(.weekday, from: day) + 5) % 7
+            monday[slot] = history.sessions(on: day).reduce(0) { $0 + $1.minutes }
+        }
+        return ProfileCardInfo(
+            name: social.me?.displayName ?? "You",
+            isLockedIn: false,
+            weekMinutes: history.weekMinutes,
+            streak: history.streakDays,
+            totalMinutes: history.records.reduce(0) { $0 + $1.minutes },
+            dayMinutes: monday,
+            inviteCode: social.me?.inviteCode,
+            avatar: avatars.image(for: social.me?.id)
+        )
+    }
+}
+
 enum CardStyle: String, CaseIterable, Identifiable {
     case dark = "Dark"
     case light = "Light"
@@ -162,16 +188,18 @@ struct ProfileCard: View {
                 customArt
                 LinearGradient(colors: [.black.opacity(0.35), .black.opacity(0.15), .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
             }
-            Circle()
-                .fill(style.glow.opacity(style == .light ? 0.35 : (style == .custom ? 0.10 : 0.30)))
-                .frame(width: 300, height: 300)
-                .blur(radius: 70)
-                .offset(x: 80, y: -120)
-            Circle()
-                .fill(style.glow.opacity(style == .light ? 0.22 : (style == .custom ? 0.06 : 0.16)))
-                .frame(width: 240, height: 240)
-                .blur(radius: 70)
-                .offset(x: -110, y: 170)
+            if style != .custom {
+                Circle()
+                    .fill(style.glow.opacity(style == .light ? 0.35 : 0.30))
+                    .frame(width: 300, height: 300)
+                    .blur(radius: 70)
+                    .offset(x: 80, y: -120)
+                Circle()
+                    .fill(style.glow.opacity(style == .light ? 0.22 : 0.16))
+                    .frame(width: 240, height: 240)
+                    .blur(radius: 70)
+                    .offset(x: -110, y: 170)
+            }
 
             VStack(spacing: 0) {
                 HStack {
@@ -187,13 +215,20 @@ struct ProfileCard: View {
                 Spacer(minLength: 12)
 
                 ZStack {
-                    Circle()
-                        .fill(style.glow.opacity(0.5))
-                        .frame(width: 110, height: 110)
-                        .blur(radius: 24)
-                    Circle()
-                        .fill(LinearGradient(colors: [style.glow, style.accent.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 104, height: 104)
+                    if style == .custom {
+                        // Over a picture, keep it clean: a thin white ring and no glow.
+                        Circle()
+                            .strokeBorder(.white.opacity(0.9), lineWidth: 2.5)
+                            .frame(width: 104, height: 104)
+                    } else {
+                        Circle()
+                            .fill(style.glow.opacity(0.5))
+                            .frame(width: 110, height: 110)
+                            .blur(radius: 24)
+                        Circle()
+                            .fill(LinearGradient(colors: [style.glow, style.accent.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 104, height: 104)
+                    }
                     Circle()
                         .fill(style == .light ? Color.white : Color.black.opacity(0.88))
                         .frame(width: 96, height: 96)
@@ -329,8 +364,8 @@ struct MyProfileView: View {
     @EnvironmentObject private var avatars: AvatarStore
     @Environment(\.dismiss) private var dismiss
 
-    @StateObject private var backgrounds = CardBackgroundStore()
-    @State private var style: CardStyle = .dark
+    @EnvironmentObject private var backgrounds: CardBackgroundStore
+    @AppStorage("lockin.cardStyle") private var style: CardStyle = .dark
     @State private var pickerItem: PhotosPickerItem?
     @State private var isEditing = false
     @State private var isPreparing = false
@@ -339,25 +374,7 @@ struct MyProfileView: View {
     @State private var didCopy = false
 
     private var info: ProfileCardInfo {
-        let calendar = Calendar.current
-        let start = calendar.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
-        // Monday-first, whatever the locale's first weekday is.
-        var monday = [Int](repeating: 0, count: 7)
-        for offset in 0..<7 {
-            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
-            let slot = (calendar.component(.weekday, from: day) + 5) % 7
-            monday[slot] = history.sessions(on: day).reduce(0) { $0 + $1.minutes }
-        }
-        return ProfileCardInfo(
-            name: social.me?.displayName ?? "You",
-            isLockedIn: false,
-            weekMinutes: history.weekMinutes,
-            streak: history.streakDays,
-            totalMinutes: history.records.reduce(0) { $0 + $1.minutes },
-            dayMinutes: monday,
-            inviteCode: social.me?.inviteCode,
-            avatar: avatars.image(for: social.me?.id)
-        )
+        .mine(social: social, history: history, avatars: avatars)
     }
 
     var body: some View {
@@ -518,4 +535,118 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+
+// MARK: - Short version on the Friends tab
+
+/// A compact version of your card (in the look you picked) that opens the full one.
+struct MeCardHeader: View {
+    let info: ProfileCardInfo
+    let todayMinutes: Int
+
+    @EnvironmentObject private var backgrounds: CardBackgroundStore
+    @AppStorage("lockin.cardStyle") private var style: CardStyle = .dark
+
+    private let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: style.background, startPoint: .top, endPoint: .bottom)
+            if style == .custom, let background = backgrounds.background {
+                art(background)
+                LinearGradient(colors: [.black.opacity(0.3), .black.opacity(0.6)], startPoint: .top, endPoint: .bottom)
+            } else if style != .custom {
+                Circle()
+                    .fill(style.glow.opacity(style == .light ? 0.35 : 0.28))
+                    .frame(width: 200, height: 200)
+                    .blur(radius: 50)
+                    .offset(x: 110, y: -60)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 14) {
+                    avatar
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(info.name)
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Text(info.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(style.chip, in: Capsule())
+                    }
+                    Spacer(minLength: 8)
+                    Image(style.logo)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(style.ink.opacity(0.15), lineWidth: 0.5))
+                }
+
+                HStack(spacing: 0) {
+                    stat(todayMinutes.minutesLabel, "today")
+                    divider
+                    stat(info.weekMinutes.minutesLabel, "this week")
+                    divider
+                    stat("\(info.streak)", "day streak", flame: true)
+                }
+            }
+            .foregroundStyle(style.ink)
+            .padding(18)
+        }
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(style.ink.opacity(style == .light ? 0.08 : 0.12), lineWidth: 1))
+        .shadow(color: style == .light ? .black.opacity(0.06) : style.glow.opacity(0.18), radius: 16, y: 6)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(style.ink.opacity(0.14)).frame(width: 1, height: 26)
+    }
+
+    @ViewBuilder
+    private func art(_ background: CardBackground) -> some View {
+        if background.isAnimated {
+            AnimatedFramesView(background: background)
+        } else if let still = background.still {
+            Image(uiImage: still).resizable().scaledToFill()
+        }
+    }
+
+    private var avatar: some View {
+        ZStack {
+            Circle().fill(style == .light ? Color.white : Color.black.opacity(0.85))
+            if let image = info.avatar {
+                Image(uiImage: image).resizable().scaledToFill().clipShape(Circle())
+            } else {
+                Text(String(info.name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased())
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(style == .light ? style.accent : .white)
+            }
+        }
+        .frame(width: 64, height: 64)
+        .overlay(Circle().strokeBorder(style == .custom ? Color.white.opacity(0.9) : style.accent, lineWidth: 2))
+    }
+
+    private func stat(_ value: String, _ label: String, flame: Bool = false) -> some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                if flame {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(info.streak > 0 ? style.accent : style.softInk)
+                }
+                Text(value)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            }
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(style.softInk)
+        }
+        .frame(maxWidth: .infinity)
+    }
 }

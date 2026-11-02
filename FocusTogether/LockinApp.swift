@@ -11,6 +11,7 @@ struct LockinApp: App {
     @StateObject private var widgets: WidgetPublisher
     @StateObject private var moments = MomentsStore()
     @StateObject private var avatars = AvatarStore()
+    @StateObject private var cardBackgrounds = CardBackgroundStore()
 
     init() {
         let history = HistoryStore()
@@ -36,6 +37,7 @@ struct LockinApp: App {
                 .environmentObject(widgets)
                 .environmentObject(moments)
                 .environmentObject(avatars)
+                .environmentObject(cardBackgrounds)
         }
     }
 }

@@ -18,7 +18,7 @@ struct RoutineCard: View {
         let times = routine.prayerSettings.map { PrayerCalculator.times(for: $0, on: now) } ?? [:]
         let next = nextPrayer(in: times, after: now)
 
-        return VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: routine.symbol)
                     .font(.body.weight(.semibold))
@@ -63,6 +63,13 @@ struct RoutineCard: View {
                 Label("Nothing due today — rest day", systemImage: "moon.zzz")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            } else if due.count <= 2 {
+                // One or two items read better as full-width rows than as lone circles in a wide box.
+                VStack(spacing: 8) {
+                    ForEach(due) { slot in
+                        slotRow(slot, times: times, next: next)
+                    }
+                }
             } else if due.count <= 5 {
                 HStack(alignment: .top, spacing: 6) {
                     ForEach(due) { slot in
@@ -122,6 +129,28 @@ struct RoutineCard: View {
         return "\(store.doneThisWeek(slot))/\(target) this wk"
     }
 
+    private func tick(_ slot: RoutineSlot) {
+        let wasComplete = store.isComplete(routine)
+        withAnimation(Theme.spring) { store.toggle(slot) }
+        if !wasComplete, store.isComplete(routine) {
+            Haptics.success()
+            onComplete(store.streak(for: routine))
+        } else {
+            Haptics.tap()
+        }
+    }
+
+    private func slotRow(_ slot: RoutineSlot, times: [PrayerName: Date], next: (prayer: PrayerName, time: Date)?) -> some View {
+        SlotRow(
+            name: slot.name,
+            time: slot.prayer.flatMap { times[$0] },
+            detail: slot.detailText,
+            weekly: weeklyProgress(slot),
+            isNext: slot.prayer != nil && slot.prayer == next?.prayer,
+            isDone: store.isDone(slot)
+        ) { tick(slot) }
+    }
+
     private func slotToggle(_ slot: RoutineSlot, times: [PrayerName: Date], next: (prayer: PrayerName, time: Date)?) -> some View {
         SlotToggle(
             name: slot.name,
@@ -130,17 +159,74 @@ struct RoutineCard: View {
             weekly: weeklyProgress(slot),
             isNext: slot.prayer != nil && slot.prayer == next?.prayer,
             isDone: store.isDone(slot)
-        ) {
-            let wasComplete = store.isComplete(routine)
-            withAnimation(Theme.spring) { store.toggle(slot) }
-            if !wasComplete, store.isComplete(routine) {
-                Haptics.success()
-                onComplete(store.streak(for: routine))
-            } else {
-                Haptics.tap()
-            }
-        }
+        ) { tick(slot) }
     }
+}
+
+/// A full-width item: tick, name, and its time, detail and weekly progress on one tidy row.
+private struct SlotRow: View {
+    let name: String
+    let time: Date?
+    let detail: String?
+    let weekly: String?
+    let isNext: Bool
+    let isDone: Bool
+    let action: () -> Void
+
+    private var subtitle: String? {
+        [time?.formatted(date: .omitted, time: .shortened), detail].compactMap { $0 }.joined(separator: " · ").nilIfEmpty
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .strokeBorder(isDone ? Color.clear : (isNext ? Theme.accent : Color.primary.opacity(0.18)), lineWidth: 1.5)
+                        .background(Circle().fill(isDone ? Color.primary : .clear))
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.background)
+                        .scaleEffect(isDone ? 1 : 0.4)
+                        .opacity(isDone ? 1 : 0)
+                }
+                .frame(width: 38, height: 38)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(isDone ? .secondary : .primary)
+                        .strikethrough(isDone, color: .secondary)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(isNext ? Theme.accent : Color.secondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                if let weekly {
+                    Text(weekly)
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Theme.accent.opacity(0.12), in: Capsule())
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Theme.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel([name, subtitle, weekly].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityValue(isDone ? "Done" : (isNext ? "Next" : "Not done"))
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 private struct SlotToggle: View {
