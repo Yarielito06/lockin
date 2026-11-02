@@ -46,6 +46,34 @@ struct PlanItem: Identifiable, Codable, Equatable {
     var isDone = false
     /// For a period (like "submit between 9 and 13 Nov"): the last day, start of day. nil for a single day.
     var endDate: Date?
+    /// Remind me this many days before it starts (0 = don't).
+    var leadDays = 3
+    /// A short note every morning until it's done.
+    var nudge = true
+
+    enum CodingKeys: String, CodingKey { case id, title, kind, date, hasTime, note, isDone, endDate, leadDays, nudge }
+
+    init(id: UUID = UUID(), title: String, kind: PlanKind = .deadline, date: Date) {
+        self.id = id
+        self.title = title
+        self.kind = kind
+        self.date = date
+    }
+
+    // Older saved items don't have the newest fields.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        kind = try c.decodeIfPresent(PlanKind.self, forKey: .kind) ?? .deadline
+        date = try c.decode(Date.self, forKey: .date)
+        hasTime = try c.decodeIfPresent(Bool.self, forKey: .hasTime) ?? false
+        note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+        isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+        endDate = try c.decodeIfPresent(Date.self, forKey: .endDate)
+        leadDays = try c.decodeIfPresent(Int.self, forKey: .leadDays) ?? 3
+        nudge = try c.decodeIfPresent(Bool.self, forKey: .nudge) ?? true
+    }
 
     var isPeriod: Bool {
         guard let endDate else { return false }

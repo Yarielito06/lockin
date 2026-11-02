@@ -7,6 +7,7 @@ struct RootView: View {
     @EnvironmentObject private var blocking: BlockingManager
     @EnvironmentObject private var routines: RoutineStore
     @EnvironmentObject private var widgets: WidgetPublisher
+    @EnvironmentObject private var planner: PlannerStore
     @Environment(\.scenePhase) private var scenePhase
 
     private var isAuthorized: Bool {
@@ -45,6 +46,8 @@ struct RootView: View {
                 blocking.refresh()
                 routines.reloadSharedCompletions()
                 routines.refreshReminders()
+                // Keeps the week of morning nudges rolling forward.
+                planner.scheduleReminders()
                 widgets.publish()
             }
         }

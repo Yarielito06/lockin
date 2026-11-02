@@ -6,9 +6,9 @@ enum ReminderScheduler {
     static let sessionEndID = "lockin.session.end"
     private static let routinePrefix = "lockin.routine."
     /// iOS keeps at most 64 pending notifications per app; leave room for the session one.
-    private static let maxRoutineRequests = 44
+    private static let maxRoutineRequests = 30
     private static let planPrefix = "lockin.plan."
-    private static let maxPlanRequests = 16
+    private static let maxPlanRequests = 32
     private static let prayerDaysAhead = 7
 
     private static var center: UNUserNotificationCenter { .current() }
@@ -123,6 +123,14 @@ enum ReminderScheduler {
         }
 
         for item in items where !item.isDone {
+            // A heads-up a few days before it starts.
+            if item.leadDays > 0,
+               let lead = calendar.date(byAdding: .day, value: -item.leadDays, to: calendar.startOfDay(for: item.date)),
+               let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: lead) {
+                let when = item.date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+                add("\(item.id).lead", title: "In \(item.leadDays) \(item.leadDays == 1 ? "day" : "days"): \(item.title)",
+                    body: item.isPeriod ? "\(item.kind.title) period starts \(when) and runs to \(item.lastDay.formatted(.dateTime.day().month(.abbreviated)))." : "\(item.kind.title) on \(when).", at: nine)
+            }
             add("\(item.id).day", title: "\(item.kind.title): \(item.title)", body: item.hasTime ? "Today at \(item.date.formatted(date: .omitted, time: .shortened))" : "Due today", at: item.fireDate)
             if item.isPeriod, let morning = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: item.lastDay) {
                 add("\(item.id).end", title: "Last day: \(item.title)", body: "The \(item.kind.title.lowercased()) period ends today.", at: morning)
@@ -133,6 +141,30 @@ enum ReminderScheduler {
                 add("\(item.id).eve", title: "Tomorrow: \(item.title)", body: item.isPeriod ? "Your \(item.kind.title.lowercased()) ends tomorrow. Lock in tonight?" : "Your \(item.kind.title.lowercased()) is tomorrow. Lock in tonight?", at: evening)
             }
         }
+        // One morning note per day for the next week: what's still to finish.
+        let today = calendar.startOfDay(for: now)
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today),
+                  let nine = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: day), nine > now else { continue }
+            let open = items.filter { item in
+                guard item.nudge, !item.isDone else { return false }
+                // Under way (or about to start within a week) and not yet past its last day.
+                return item.lastDay >= day && calendar.startOfDay(for: item.date) <= (calendar.date(byAdding: .day, value: 7, to: day) ?? day)
+                    && (item.isPeriod ? calendar.startOfDay(for: item.date) <= day : true)
+            }
+            .sorted { $0.lastDay < $1.lastDay }
+            guard !open.isEmpty else { continue }
+            func left(_ item: PlanItem) -> String {
+                let days = calendar.dateComponents([.day], from: day, to: item.lastDay).day ?? 0
+                return days == 0 ? "last day" : (days == 1 ? "1 day left" : "\(days) days left")
+            }
+            let lines = open.prefix(3).map { "\($0.title) (\(left($0)))" }.joined(separator: ", ")
+            let extra = open.count > 3 ? " +\(open.count - 3) more" : ""
+            add("digest.\(offset)",
+                title: open.count == 1 ? "Still to finish" : "\(open.count) things to finish",
+                body: lines + extra + ". Lock in and get it done?", at: nine)
+        }
+
         for goal in goals {
             let day = calendar.startOfDay(for: goal.targetDate)
             for (offset, text) in [(-7, "A week to go"), (-1, "Tomorrow is the day")] {

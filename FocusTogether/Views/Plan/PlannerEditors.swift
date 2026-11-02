@@ -126,6 +126,8 @@ struct PlanItemEditorView: View {
     @State private var date = Date.now
     @State private var hasTime = false
     @State private var hasEnd = false
+    @State private var leadDays = 3
+    @State private var nudge = true
     @State private var endDate = Date.now
     @State private var note = ""
     @State private var isConfirmingDelete = false
@@ -211,16 +213,37 @@ struct PlanItemEditorView: View {
                         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
 
+                    field("Remind me") {
+                        VStack(spacing: 0) {
+                            HStack(spacing: 8) {
+                                ForEach([(0, "No"), (1, "1 day"), (3, "3 days"), (7, "1 week")], id: \.0) { option in
+                                    ChipButton(title: option.1, isSelected: leadDays == option.0) {
+                                        Haptics.select()
+                                        leadDays = option.0
+                                    }
+                                }
+                            }
+                            .padding(12)
+                            Divider().padding(.horizontal, 14)
+                            Toggle("Nudge me each morning until it's done", isOn: $nudge)
+                                .tint(kind.color)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                        }
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        Text(leadDays == 0
+                             ? "You'll still get a reminder on the day."
+                             : "You'll get a reminder \(leadDays == 7 ? "a week" : "\(leadDays) \(leadDays == 1 ? "day" : "days")") before, and one on the day. Tick it off to stop the nudges.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
                     field("Note (optional)") {
                         TextField("Details", text: $note, axis: .vertical)
                             .lineLimit(1...3)
                             .padding(14)
                             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
-
-                    Text("You'll get a reminder on the day, and the evening before a deadline or exam ends.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
 
                     if item != nil {
                         Button(role: .destructive) { isConfirmingDelete = true } label: {
@@ -256,6 +279,8 @@ struct PlanItemEditorView: View {
                     date = item.date
                     hasTime = item.hasTime
                     note = item.note
+                    leadDays = item.leadDays
+                    nudge = item.nudge
                     if item.isPeriod, let end = item.endDate {
                         hasEnd = true
                         endDate = end
@@ -278,6 +303,8 @@ struct PlanItemEditorView: View {
         new.date = date
         new.hasTime = hasTime
         new.endDate = hasEnd ? endDate : nil
+        new.leadDays = leadDays
+        new.nudge = nudge
         new.note = note
         planner.save(new)
         Haptics.success()
