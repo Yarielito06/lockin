@@ -6,6 +6,7 @@ import SwiftUI
 /// Friends' moments from the last 7 days, grouped by day, plus a "Share a moment" card.
 struct MomentsFeed: View {
     @EnvironmentObject private var moments: MomentsStore
+    @EnvironmentObject private var social: SocialStore
     @State private var isComposing = false
     @State private var viewing: Moment?
 
@@ -49,27 +50,39 @@ struct MomentsFeed: View {
             Haptics.tap()
             isComposing = true
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 46, height: 46)
-                    .background(Theme.accent, in: Circle())
+            HStack(spacing: 12) {
+                Avatar(name: social.me?.displayName ?? "You", size: 44, isMe: true)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(Theme.accent, in: Circle())
+                            .overlay(Circle().stroke(Theme.surface, lineWidth: 2))
+                            .offset(x: 3, y: 3)
+                    }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Share a moment").font(.headline)
-                    Text("Show your friends what you're up to")
-                        .font(.subheadline)
+                    Text("What are you up to?")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Share a moment with your friends")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer()
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.accent, in: Circle())
             }
             .foregroundStyle(.primary)
-            .card(padding: 16)
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
+            .padding(.vertical, 10)
+            .background(Theme.surface, in: Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Share a moment")
     }
 
     private func dayTitle(_ day: Date) -> String {
@@ -313,36 +326,50 @@ struct MomentComposer: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 18) {
                     photoArea
 
-                    TextField("Say something… (optional)", text: $caption, axis: .vertical)
-                        .lineLimit(1...3)
-                        .padding(14)
-                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .onChange(of: caption) { caption = String($0.prefix(140)) }
+                    if image != nil {
+                        captionField
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Add a tag").font(.headline)
-                        FlowTags(tags: suggestedTags, selected: $tag)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Add a tag")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            FlowTags(tags: suggestedTags, selected: $tag)
+                        }
+                        .transition(.opacity)
                     }
                 }
-                .padding(Theme.gutter)
+                .padding(.horizontal, Theme.gutter)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+                .animation(Theme.spring, value: image != nil)
             }
+            .safeAreaInset(edge: .bottom) {
+                if image != nil {
+                    Button(action: share) {
+                        if moments.isPosting {
+                            ProgressView().tint(Theme.background)
+                        } else {
+                            Label("Share with friends", systemImage: "paperplane.fill")
+                        }
+                    }
+                    .buttonStyle(.primary)
+                    .disabled(moments.isPosting)
+                    .padding(.horizontal, Theme.gutter)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+                    .background(Theme.background)
+                }
+            }
+            .background(Theme.background)
             .navigationTitle("New moment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if moments.isPosting {
-                        ProgressView()
-                    } else {
-                        Button("Share", action: share)
-                            .font(.body.weight(.semibold))
-                            .disabled(image == nil)
-                    }
                 }
             }
             .onChange(of: pickerItem) { item in
@@ -374,7 +401,8 @@ struct MomentComposer: View {
                         .resizable()
                         .scaledToFill()
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
                 .overlay(alignment: .topTrailing) {
                     Button { self.image = nil } label: {
                         Image(systemName: "xmark")
@@ -398,33 +426,62 @@ struct MomentComposer: View {
                     }
                 }
         } else {
-            HStack(spacing: 12) {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    sourceButton("Camera", symbol: "camera.fill") { isShowingCamera = true }
+            VStack(spacing: 22) {
+                Spacer(minLength: 0)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 72, height: 72)
+                    .background(Theme.accent.opacity(0.14), in: Circle())
+                VStack(spacing: 6) {
+                    Text("Share a moment")
+                        .font(.title3.bold())
+                    Text("Your desk, your view, a finished workout.\nYour friends see it for 7 days.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    sourceTile("Library", symbol: "photo.on.rectangle")
+                VStack(spacing: 10) {
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        Button { isShowingCamera = true } label: {
+                            Label("Take a photo", systemImage: "camera.fill")
+                        }
+                        .buttonStyle(.primary)
+                    }
+                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Label("Choose from library", systemImage: "photo.on.rectangle")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .foregroundStyle(.primary)
+                            .background(Theme.background, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+                Spacer(minLength: 0)
             }
-            .frame(height: 180)
+            .frame(maxWidth: .infinity)
+            .frame(height: 420)
+            .background(
+                LinearGradient(colors: [Theme.accent.opacity(0.12), Theme.surface], startPoint: .top, endPoint: .center),
+                in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+            )
         }
     }
 
-    private func sourceButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { sourceTile(title, symbol: symbol) }
-            .buttonStyle(.plain)
-    }
-
-    private func sourceTile(_ title: String, symbol: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.system(size: 26, weight: .semibold))
-            Text(title).font(.subheadline.weight(.semibold))
+    private var captionField: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            TextField("Say something… (optional)", text: $caption, axis: .vertical)
+                .lineLimit(1...3)
+                .padding(14)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .onChange(of: caption) { caption = String($0.prefix(140)) }
+            if caption.count > 100 {
+                Text("\(caption.count)/140")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
-        .foregroundStyle(.primary)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func share() {
@@ -444,26 +501,28 @@ private struct FlowTags: View {
     @Binding var selected: String?
 
     var body: some View {
-        // Simple two-column layout keeps chips aligned without a custom Layout.
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], alignment: .leading, spacing: 8) {
-            ForEach(tags, id: \.self) { tag in
-                let isOn = selected == tag
-                Button {
-                    Haptics.select()
-                    selected = isOn ? nil : tag
-                } label: {
-                    Text(tag)
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(isOn ? Theme.background : .primary)
-                        .background(isOn ? Color.primary : Theme.surface, in: Capsule())
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(tags, id: \.self) { tag in
+                    let isOn = selected == tag
+                    Button {
+                        Haptics.select()
+                        selected = isOn ? nil : tag
+                    } label: {
+                        Text(tag)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(isOn ? Theme.background : .primary)
+                            .background(isOn ? Color.primary : Theme.surface, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, Theme.gutter)
         }
+        .padding(.horizontal, -Theme.gutter)
     }
 }
 
