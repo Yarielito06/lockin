@@ -25,6 +25,13 @@ struct MainTabView: View {
 
             LockinTabBar(selection: $tab)
         }
+        // Load a friend's photo as soon as they set or change it.
+        .onChange(of: social.friends.map(\.avatarPath)) { _ in
+            Task { await avatars.sync(me: social.me, friends: social.friends) }
+        }
+        .onChange(of: social.me?.avatarPath) { _ in
+            Task { await avatars.sync(me: social.me, friends: social.friends) }
+        }
         // Keep requests, invites, group sessions and friends' status fresh while the app is open.
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }

@@ -35,7 +35,7 @@ struct NewGroupView: View {
                             if isMember { memberIDs.remove(friend.id) } else { memberIDs.insert(friend.id) }
                         } label: {
                             HStack(spacing: 12) {
-                                Avatar(name: friend.name, size: 34)
+                                Avatar(name: friend.name, size: 34, userID: friend.id)
                                 Text(friend.name)
                                     .foregroundStyle(.primary)
                                 Spacer()

@@ -159,6 +159,7 @@ private struct LockSetupView: View {
                             GroupCard(
                                 group: group,
                                 memberNames: social.members(of: group).map(\.name),
+                                memberIDs: social.members(of: group).map(\.id),
                                 invitedCount: social.invitedMembers(of: group).count,
                                 isSelected: group.id == selectedGroupID
                             ) {
@@ -223,6 +224,7 @@ private struct LockSetupView: View {
 private struct GroupCard: View {
     let group: StudyGroup
     let memberNames: [String]
+    var memberIDs: [UUID] = []
     let invitedCount: Int
     let isSelected: Bool
     let action: () -> Void
@@ -230,7 +232,7 @@ private struct GroupCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
-                AvatarStack(names: memberNames.isEmpty ? [group.name] : memberNames)
+                AvatarStack(names: memberNames.isEmpty ? [group.name] : memberNames, ids: memberIDs)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(group.name)
                         .font(.subheadline.weight(.semibold))
@@ -298,7 +300,7 @@ private struct JoinGroupSessionCard: View {
 
             HStack(spacing: 10) {
                 if !lockedInNames.isEmpty {
-                    AvatarStack(names: lockedInNames, size: 28, ringColor: Theme.surface)
+                    AvatarStack(names: lockedInNames, ids: social.members(of: group).filter { $0.isFocusing(at: now) }.map(\.id), size: 28, ringColor: Theme.surface)
                 }
                 Text("\(group.sessionStartedByName ?? "Someone") started · \(minutesLeft) min left")
                     .font(.subheadline)

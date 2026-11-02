@@ -132,7 +132,7 @@ struct FriendsView: View {
                 ForEach(Array(friends.enumerated()), id: \.element.id) { index, friend in
                     if index > 0 { Divider().padding(.leading, 56) }
                     HStack(spacing: 12) {
-                        Avatar(name: friend.name, size: 40)
+                        Avatar(name: friend.name, size: 40, userID: friend.id)
                             .overlay(alignment: .bottomTrailing) {
                                 Circle()
                                     .fill(Color.green)
@@ -181,7 +181,7 @@ struct FriendsView: View {
                             .font(.subheadline.weight(.semibold).monospacedDigit())
                             .foregroundStyle(index == 0 ? Theme.accent : .secondary)
                             .frame(width: 18)
-                        Avatar(name: entry.isMe ? (social.me?.displayName ?? "You") : entry.name, size: 36, isMe: entry.isMe)
+                        Avatar(name: entry.isMe ? (social.me?.displayName ?? "You") : entry.name, size: 36, isMe: entry.isMe, userID: entry.isMe ? social.me?.id : entry.id)
                         VStack(alignment: .leading, spacing: 7) {
                             HStack {
                                 Text(entry.isMe ? "You" : entry.name)

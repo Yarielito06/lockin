@@ -166,6 +166,10 @@ struct Avatar: View {
     let name: String
     var size: CGFloat = 40
     var isMe = false
+    /// Pass a person's id to show their profile photo when they have one.
+    var userID: UUID?
+
+    @EnvironmentObject private var avatars: AvatarStore
 
     private static let palette: [Color] = [.orange, .blue, .green, .pink, .purple, .teal, .indigo, .mint]
 
@@ -181,27 +185,39 @@ struct Avatar: View {
     }
 
     var body: some View {
-        Circle()
-            .fill(isMe ? Color.primary : color.opacity(0.18))
-            .overlay(
-                Text(initials)
-                    .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isMe ? Theme.background : color)
-            )
-            .frame(width: size, height: size)
-            .accessibilityHidden(true)
+        Group {
+            if let image = avatars.image(for: userID) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(isMe ? Color.primary : color.opacity(0.18))
+                    .overlay(
+                        Text(initials)
+                            .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
+                            .foregroundStyle(isMe ? Theme.background : color)
+                    )
+                    .frame(width: size, height: size)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
 struct AvatarStack: View {
     let names: [String]
+    /// Same order as `names`; lets people with a profile photo show it.
+    var ids: [UUID] = []
     var size: CGFloat = 28
     var ringColor: Color = Theme.surface
 
     var body: some View {
         HStack(spacing: -size * 0.3) {
-            ForEach(Array(names.prefix(4).enumerated()), id: \.offset) { _, name in
-                Avatar(name: name, size: size)
+            ForEach(Array(names.prefix(4).enumerated()), id: \.offset) { index, name in
+                Avatar(name: name, size: size, userID: ids.indices.contains(index) ? ids[index] : nil)
                     .background(Circle().fill(Theme.background))
                     .overlay(Circle().stroke(ringColor, lineWidth: 2))
             }

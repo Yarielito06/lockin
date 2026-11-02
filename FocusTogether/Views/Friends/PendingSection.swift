@@ -12,7 +12,7 @@ struct PendingSection: View {
                     ForEach(Array(social.incomingRequests.enumerated()), id: \.element.id) { index, request in
                         if index > 0 { Divider().padding(.leading, 56) }
                         row(
-                            avatar: Avatar(name: request.name, size: 40),
+                            avatar: Avatar(name: request.name, size: 40, userID: request.id),
                             title: request.name,
                             subtitle: "Wants to be friends"
                         ) {
@@ -44,7 +44,7 @@ struct PendingSection: View {
                     ForEach(Array(social.outgoingRequests.enumerated()), id: \.element.id) { index, person in
                         if index > 0 { Divider().padding(.leading, 56) }
                         HStack(spacing: 12) {
-                            Avatar(name: person.name, size: 40)
+                            Avatar(name: person.name, size: 40, userID: person.id)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(person.name).font(.subheadline.weight(.semibold))
                                 Text("Waiting for them to accept")

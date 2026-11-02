@@ -13,6 +13,11 @@ struct CountdownView: View {
         return social.members(of: group).map(\.name)
     }
 
+    private var groupMemberIDs: [UUID] {
+        guard let name = session.groupName, let group = social.group(named: name) else { return [] }
+        return social.members(of: group).map(\.id)
+    }
+
     var body: some View {
         VStack(spacing: 36) {
             Spacer()
@@ -66,7 +71,7 @@ struct CountdownView: View {
 
             if !groupMembers.isEmpty {
                 HStack(spacing: 10) {
-                    AvatarStack(names: groupMembers, size: 32, ringColor: Theme.background)
+                    AvatarStack(names: groupMembers, ids: groupMemberIDs, size: 32, ringColor: Theme.background)
                     Text("+ you")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)

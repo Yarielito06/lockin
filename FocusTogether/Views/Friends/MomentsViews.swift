@@ -51,7 +51,7 @@ struct MomentsFeed: View {
             isComposing = true
         } label: {
             HStack(spacing: 12) {
-                Avatar(name: social.me?.displayName ?? "You", size: 44, isMe: true)
+                MyAvatar(size: 44)
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "plus")
                             .font(.system(size: 9, weight: .heavy))
@@ -104,7 +104,7 @@ private struct MomentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Avatar(name: moment.name, size: 34, isMe: moments.isMine(moment))
+                Avatar(name: moment.name, size: 34, isMe: moments.isMine(moment), userID: moment.userID)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(moments.isMine(moment) ? "You" : moment.name)
                         .font(.subheadline.weight(.semibold))
@@ -254,7 +254,7 @@ private struct MomentViewer: View {
             MomentImage(url: moment.imageURL, fill: false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack(spacing: 10) {
-                Avatar(name: moment.name, size: 34)
+                Avatar(name: moment.name, size: 34, userID: moment.userID)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(moment.name).font(.subheadline.weight(.semibold))
                     Text(moment.createdAt.formatted(.relative(presentation: .named)))
