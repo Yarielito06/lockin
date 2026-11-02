@@ -5,6 +5,7 @@ struct AddNearbyView: View {
     @StateObject private var nearby: NearbyManager
     @Environment(\.dismiss) private var dismiss
     @State private var pulse = false
+    @State private var showHelp = false
 
     init(name: String, code: String, onMatch: @escaping (String) async -> String?) {
         _nearby = StateObject(wrappedValue: NearbyManager(name: name, code: code, onMatch: onMatch))
@@ -41,6 +42,11 @@ struct AddNearbyView: View {
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: false)) { pulse = true }
         }
         .onDisappear { nearby.stop() }
+        // If nobody turns up, the usual cause is a missing permission, so say so.
+        .task {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            withAnimation(Theme.spring) { showHelp = true }
+        }
     }
 
     // MARK: Pieces
@@ -141,10 +147,30 @@ struct AddNearbyView: View {
             Button("Done") { dismiss() }
                 .buttonStyle(.primary)
         default:
-            Text("Works when both phones have Lockin open on this screen, with Wi‑Fi and Bluetooth on.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
+            if showHelp, case .searching = nearby.phase {
+                VStack(spacing: 10) {
+                    Text("Not finding anyone?")
+                        .font(.subheadline.weight(.semibold))
+                    Text("On both phones: turn on Wi‑Fi and Bluetooth, and allow Local Network for Lockin in Settings → Privacy & Security → Local Network.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    Text("Or add them with their invite code instead.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else {
+                Text("Works when both phones have Lockin open on this screen, with Wi‑Fi and Bluetooth on.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
