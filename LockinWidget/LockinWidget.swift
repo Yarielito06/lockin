@@ -6,6 +6,8 @@ struct LockinWidgetBundle: WidgetBundle {
     var body: some Widget {
         LockinWidget()
         LockinRoutinesWidget()
+        LockinFriendsWidget()
+        LockinGoalWidget()
         LockinLiveActivity()
     }
 }

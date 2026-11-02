@@ -3,6 +3,34 @@ import Foundation
 /// Everything the widget shows, written by the app to the App Group whenever it changes.
 /// The widget can't read the app's own stores, so this is the hand-off.
 struct WidgetSnapshot: Codable, Equatable {
+    struct FriendInfo: Codable, Equatable, Identifiable {
+        let id: UUID
+        let name: String
+        let until: Date
+        var since: Date? = nil
+        var isOpen = false
+    }
+
+    struct GoalInfo: Codable, Equatable, Identifiable {
+        let id: UUID
+        let title: String
+        let symbol: String
+        let targetDate: Date
+        let createdAt: Date
+
+        func daysLeft(from now: Date = .now) -> Int {
+            let calendar = Calendar.current
+            return calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: targetDate)).day ?? 0
+        }
+    }
+
+    struct PlannedInfo: Codable, Equatable, Identifiable {
+        let id: UUID
+        let title: String
+        let symbol: String
+        let date: Date
+    }
+
     struct PrayerTime: Codable, Equatable {
         let name: String
         let date: Date
@@ -49,6 +77,11 @@ struct WidgetSnapshot: Codable, Equatable {
     var streakDays: Int
 
     var routines: [RoutineInfo]
+
+    /// Friends who are locked in as of the last time the app refreshed.
+    var friendsLocked: [FriendInfo]? = nil
+    var goals: [GoalInfo]? = nil
+    var plannedItems: [PlannedInfo]? = nil
 
     static let empty = WidgetSnapshot(
         day: Calendar.current.startOfDay(for: .now), routinesDone: 0, routinesTotal: 0,

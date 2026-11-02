@@ -11,5 +11,12 @@ enum AppGroup {
         return value ?? "group.com.example.FocusTogether"
     }()
 
+    /// Small profile photos for widgets, which can't reach the network or the app's own stores.
+    static func avatarURL(for id: UUID) -> URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)?
+            .appendingPathComponent("avatars", isDirectory: true)
+            .appendingPathComponent("\(id.uuidString.lowercased()).jpg")
+    }
+
     static let defaults: UserDefaults = UserDefaults(suiteName: identifier) ?? .standard
 }

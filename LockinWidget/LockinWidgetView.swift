@@ -223,7 +223,7 @@ struct LockinWidgetView: View {
     }
 }
 
-private extension View {
+extension View {
     /// iOS 17 requires `containerBackground`; iOS 16 widgets draw their own padded background.
     @ViewBuilder
     func widgetBackground() -> some View {

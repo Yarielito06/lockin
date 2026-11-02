@@ -9,16 +9,20 @@ final class WidgetPublisher: ObservableObject {
     private let routines: RoutineStore
     private let blocking: BlockingManager
     private let history: HistoryStore
+    private let social: SocialStore
+    private let planner: PlannerStore
     private var lastPublished: WidgetSnapshot?
     private var cancellables = Set<AnyCancellable>()
 
-    init(routines: RoutineStore, blocking: BlockingManager, history: HistoryStore) {
+    init(routines: RoutineStore, blocking: BlockingManager, history: HistoryStore, social: SocialStore, planner: PlannerStore) {
         self.routines = routines
         self.blocking = blocking
         self.history = history
+        self.social = social
+        self.planner = planner
 
         // objectWillChange fires *before* the change, so wait a beat and read the new state.
-        Publishers.Merge3(routines.objectWillChange, blocking.objectWillChange, history.objectWillChange)
+        Publishers.MergeMany(routines.objectWillChange.eraseToAnyPublisher(), blocking.objectWillChange.eraseToAnyPublisher(), history.objectWillChange.eraseToAnyPublisher(), social.objectWillChange.eraseToAnyPublisher(), planner.objectWillChange.eraseToAnyPublisher())
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .sink { [weak self] _ in self?.publish() }
             .store(in: &cancellables)
@@ -81,7 +85,12 @@ final class WidgetPublisher: ObservableObject {
                         )
                     }
                 )
-            }
+            },
+            friendsLocked: social.friendsFocusing(at: now).filter { !$0.isSample }.prefix(6).compactMap { friend in
+                friend.focusingUntil.map { .init(id: friend.id, name: friend.name, until: $0, since: friend.focusingSince, isOpen: friend.isFocusOpen) }
+            },
+            goals: planner.activeGoals.prefix(3).map { .init(id: $0.id, title: $0.title, symbol: $0.symbol, targetDate: $0.targetDate, createdAt: $0.createdAt) },
+            plannedItems: planner.upcoming(limit: 4).filter { !$0.isGoal }.map { .init(id: $0.id, title: $0.title, symbol: $0.symbol, date: $0.date) }
         )
     }
 }

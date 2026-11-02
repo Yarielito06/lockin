@@ -12,7 +12,7 @@ struct LockinApp: App {
     @StateObject private var moments = MomentsStore()
     @StateObject private var avatars = AvatarStore()
     @StateObject private var cardBackgrounds = CardBackgroundStore()
-    @StateObject private var planner = PlannerStore()
+    @StateObject private var planner: PlannerStore
 
     init() {
         let history = HistoryStore()
@@ -20,11 +20,13 @@ struct LockinApp: App {
         let routines = RoutineStore()
         let social = SocialStore()
         social.observe(blocking: blocking, history: history)
+        let planner = PlannerStore()
         _history = StateObject(wrappedValue: history)
         _blocking = StateObject(wrappedValue: blocking)
         _routines = StateObject(wrappedValue: routines)
         _social = StateObject(wrappedValue: social)
-        _widgets = StateObject(wrappedValue: WidgetPublisher(routines: routines, blocking: blocking, history: history))
+        _planner = StateObject(wrappedValue: planner)
+        _widgets = StateObject(wrappedValue: WidgetPublisher(routines: routines, blocking: blocking, history: history, social: social, planner: planner))
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
     }
 

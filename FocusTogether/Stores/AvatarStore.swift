@@ -11,6 +11,22 @@ final class AvatarStore: ObservableObject {
     @Published private(set) var isUploading = false
 
     private var loadedPaths: [UUID: String] = [:]
+
+    /// Keeps a small copy where widgets can read it.
+    private func mirrorToWidgets(_ image: UIImage?, id: UUID) {
+        guard let url = AppGroup.avatarURL(for: id) else { return }
+        guard let image else { try? FileManager.default.removeItem(at: url); return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let side: CGFloat = 120
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let small = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+            let scale = max(side / image.size.width, side / image.size.height)
+            let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            image.draw(in: CGRect(x: (side - size.width) / 2, y: (side - size.height) / 2, width: size.width, height: size.height))
+        }
+        try? small.jpegData(compressionQuality: 0.8)?.write(to: url, options: .atomic)
+    }
     private var bucket: StorageFileApi? { Backend.client?.storage.from("moments") }
 
     func image(for id: UUID?) -> UIImage? {
@@ -25,6 +41,7 @@ final class AvatarStore: ObservableObject {
             guard let path else {
                 images[id] = nil
                 loadedPaths[id] = nil
+                mirrorToWidgets(nil, id: id)
                 continue
             }
             guard loadedPaths[id] != path, let bucket else { continue }
@@ -34,6 +51,7 @@ final class AvatarStore: ObservableObject {
                 if let image = UIImage(data: data) {
                     images[id] = image
                     loadedPaths[id] = path
+                    mirrorToWidgets(image, id: id)
                 }
             } catch {
                 // Try again on the next refresh.
@@ -52,6 +70,7 @@ final class AvatarStore: ObservableObject {
             let old = me.avatarPath
             try await social.setAvatarPath(path)
             images[me.id] = UIImage(data: data)
+            mirrorToWidgets(images[me.id], id: me.id)
             loadedPaths[me.id] = path
             if let old { _ = try? await bucket.remove(paths: [old]) }
         } catch {
