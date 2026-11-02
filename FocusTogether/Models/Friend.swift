@@ -12,6 +12,7 @@ struct Friend: Identifiable, Codable, Equatable {
     var isFocusOpen: Bool = false
     var weekMinutes: Int = 0
     var streak: Int = 0
+    var avatarPath: String?
 
     /// Demo friends shown until friend sync exists. Their status is refreshed each launch.
     var isSample = false

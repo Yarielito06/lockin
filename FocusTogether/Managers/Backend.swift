@@ -39,8 +39,10 @@ struct ProfileRow: Codable, Identifiable, Equatable {
     var weekMinutes: Int
     var weekStart: String?
     var streak: Int
+    var avatarPath: String?
 
     enum CodingKeys: String, CodingKey {
+        case avatarPath = "avatar_path"
         case focusSince = "focus_since"
         case focusOpen = "focus_open"
         case id
@@ -63,7 +65,8 @@ struct ProfileRow: Codable, Identifiable, Equatable {
             focusingSince: focusSince,
             isFocusOpen: focusOpen ?? false,
             weekMinutes: weekStart == Backend.currentWeekKey() ? weekMinutes : 0,
-            streak: streak
+            streak: streak,
+            avatarPath: avatarPath
         )
     }
 }

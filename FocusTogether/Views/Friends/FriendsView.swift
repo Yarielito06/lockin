@@ -93,7 +93,7 @@ struct FriendsView: View {
     private var meCard: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 12) {
-                Avatar(name: social.me?.displayName ?? "You", size: 44, isMe: true)
+                MyAvatar(size: 44)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("You").font(.headline)
                     Text(social.me.map { "\($0.displayName) · \($0.inviteCode)" }

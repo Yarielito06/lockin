@@ -10,6 +10,7 @@ struct LockinApp: App {
     @StateObject private var social: SocialStore
     @StateObject private var widgets: WidgetPublisher
     @StateObject private var moments = MomentsStore()
+    @StateObject private var avatars = AvatarStore()
 
     init() {
         let history = HistoryStore()
@@ -34,6 +35,7 @@ struct LockinApp: App {
                 .environmentObject(social)
                 .environmentObject(widgets)
                 .environmentObject(moments)
+                .environmentObject(avatars)
         }
     }
 }

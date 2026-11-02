@@ -5,6 +5,7 @@ struct FriendDetailView: View {
     let friend: Friend
 
     @EnvironmentObject private var social: SocialStore
+    @EnvironmentObject private var avatars: AvatarStore
     @Environment(\.dismiss) private var dismiss
     @State private var isConfirmingRemove = false
 
@@ -19,9 +20,10 @@ struct FriendDetailView: View {
                                 name: friend.name,
                                 isLockedIn: friend.isFocusing(at: context.date),
                                 weekMinutes: friend.weekMinutes,
-                                streak: friend.streak
+                                streak: friend.streak,
+                                avatar: avatars.image(for: friend.id)
                             ),
-                            style: .midnight
+                            style: .dark
                         )
                         .shadow(color: Color(red: 1, green: 0.42, blue: 0.18).opacity(0.3), radius: 22, y: 10)
 

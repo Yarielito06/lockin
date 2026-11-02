@@ -1,4 +1,7 @@
+import ImageIO
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Data
 
@@ -13,6 +16,7 @@ struct ProfileCardInfo {
     /// Focus minutes for each day of this week, Monday first (yours only).
     var dayMinutes: [Int]?
     var inviteCode: String?
+    var avatar: UIImage?
 
     /// A fun title that grows with the week's focus.
     var title: String {
@@ -33,32 +37,107 @@ struct ProfileCardInfo {
 }
 
 enum CardStyle: String, CaseIterable, Identifiable {
-    case midnight = "Midnight"
-    case ember = "Ember"
-    case paper = "Paper"
+    case dark = "Dark"
+    case light = "Light"
+    case custom = "Custom"
 
     var id: String { rawValue }
 
     var background: [Color] {
         switch self {
-        case .midnight: [Color(red: 0.05, green: 0.05, blue: 0.06), Color(red: 0.13, green: 0.08, blue: 0.06)]
-        case .ember: [Color(red: 1.0, green: 0.60, blue: 0.25), Color(red: 1.0, green: 0.31, blue: 0.14)]
-        case .paper: [Color(red: 1.0, green: 0.985, blue: 0.96), Color(red: 1.0, green: 0.91, blue: 0.84)]
+        case .dark, .custom: [Color(red: 0.05, green: 0.05, blue: 0.06), Color(red: 0.13, green: 0.08, blue: 0.06)]
+        case .light: [Color(red: 1.0, green: 0.985, blue: 0.96), Color(red: 1.0, green: 0.91, blue: 0.84)]
         }
     }
 
     var glow: Color {
-        switch self {
-        case .midnight: Color(red: 1.0, green: 0.42, blue: 0.18)
-        case .ember: Color(red: 1.0, green: 0.85, blue: 0.45)
-        case .paper: Color(red: 1.0, green: 0.62, blue: 0.30)
-        }
+        self == .light ? Color(red: 1.0, green: 0.62, blue: 0.30) : Color(red: 1.0, green: 0.42, blue: 0.18)
     }
 
-    var ink: Color { self == .paper ? Color(red: 0.1, green: 0.08, blue: 0.07) : .white }
+    var ink: Color { self == .light ? Color(red: 0.1, green: 0.08, blue: 0.07) : .white }
     var softInk: Color { ink.opacity(0.62) }
-    var chip: Color { self == .paper ? Color.black.opacity(0.06) : Color.white.opacity(self == .ember ? 0.22 : 0.10) }
-    var accent: Color { self == .ember ? .white : Color(red: 1.0, green: 0.42, blue: 0.18) }
+    var chip: Color { self == .light ? Color.black.opacity(0.06) : Color.white.opacity(self == .custom ? 0.18 : 0.10) }
+    var accent: Color { Color(red: 1.0, green: 0.42, blue: 0.18) }
+    var logo: String { self == .light ? "LogoLight" : "LogoDark" }
+}
+
+// MARK: - Custom background (a photo or a GIF from your gallery)
+
+/// The frames of a chosen picture; one frame for a photo, several for a GIF.
+final class CardBackground {
+    let frames: [UIImage]
+    let duration: TimeInterval
+    var isAnimated: Bool { frames.count > 1 }
+    var still: UIImage? { frames.first }
+
+    init?(data: Data) {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let count = min(CGImageSourceGetCount(source), 90)
+        guard count > 0 else { return nil }
+        var frames: [UIImage] = []
+        var total: TimeInterval = 0
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 900,
+        ]
+        for index in 0..<count {
+            guard let cg = CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary) else { continue }
+            frames.append(UIImage(cgImage: cg))
+            if let props = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+               let gif = props[kCGImagePropertyGIFDictionary] as? [CFString: Any] {
+                let delay = (gif[kCGImagePropertyGIFUnclampedDelayTime] as? Double) ?? (gif[kCGImagePropertyGIFDelayTime] as? Double) ?? 0.1
+                total += max(0.04, delay)
+            }
+        }
+        guard !frames.isEmpty else { return nil }
+        self.frames = frames
+        self.duration = frames.count > 1 ? max(0.4, total) : 0
+    }
+}
+
+/// Remembers your custom card background between launches.
+@MainActor
+final class CardBackgroundStore: ObservableObject {
+    @Published private(set) var background: CardBackground?
+
+    private static var fileURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("card-background.bin")
+    }
+
+    init() {
+        if let data = try? Data(contentsOf: Self.fileURL) { background = CardBackground(data: data) }
+    }
+
+    func set(_ data: Data) {
+        guard let new = CardBackground(data: data) else { return }
+        try? data.write(to: Self.fileURL, options: .atomic)
+        background = new
+    }
+
+    func clear() {
+        try? FileManager.default.removeItem(at: Self.fileURL)
+        background = nil
+    }
+}
+
+/// Plays a GIF's frames.
+private struct AnimatedFramesView: UIViewRepresentable {
+    let background: CardBackground
+
+    func makeUIView(context: Context) -> UIImageView {
+        let view = UIImageView()
+        view.contentMode = .scaleAspectFill
+        view.clipsToBounds = true
+        view.animationImages = background.frames
+        view.animationDuration = background.duration
+        view.startAnimating()
+        return view
+    }
+
+    func updateUIView(_ view: UIImageView, context: Context) {}
 }
 
 // MARK: - Card
@@ -66,7 +145,11 @@ enum CardStyle: String, CaseIterable, Identifiable {
 /// A poster-style profile card made to be screenshotted or shared.
 struct ProfileCard: View {
     let info: ProfileCardInfo
-    var style: CardStyle = .midnight
+    var style: CardStyle = .dark
+    /// For `.custom`: the chosen picture.
+    var background: CardBackground?
+    /// Draws this single frame instead of playing the animation (used when exporting).
+    var stillFrame: UIImage?
 
     private var initials: String {
         String(info.name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased()
@@ -75,37 +158,30 @@ struct ProfileCard: View {
     var body: some View {
         ZStack {
             LinearGradient(colors: style.background, startPoint: .top, endPoint: .bottom)
+            if style == .custom, background != nil || stillFrame != nil {
+                customArt
+                LinearGradient(colors: [.black.opacity(0.35), .black.opacity(0.15), .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+            }
             Circle()
-                .fill(style.glow.opacity(style == .paper ? 0.35 : 0.30))
+                .fill(style.glow.opacity(style == .light ? 0.35 : (style == .custom ? 0.10 : 0.30)))
                 .frame(width: 300, height: 300)
                 .blur(radius: 70)
                 .offset(x: 80, y: -120)
             Circle()
-                .fill(style.glow.opacity(style == .paper ? 0.22 : 0.16))
+                .fill(style.glow.opacity(style == .light ? 0.22 : (style == .custom ? 0.06 : 0.16)))
                 .frame(width: 240, height: 240)
                 .blur(radius: 70)
                 .offset(x: -110, y: 170)
 
             VStack(spacing: 0) {
                 HStack {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(style.accent)
-                        Text("Lockin")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                    }
+                    Image(style.logo)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 34, height: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(style.ink.opacity(0.15), lineWidth: 0.5))
                     Spacer()
-                    if info.isLockedIn {
-                        HStack(spacing: 6) {
-                            Circle().fill(Color.green).frame(width: 7, height: 7)
-                            Text("Locked in")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(style.chip, in: Capsule())
-                    }
                 }
 
                 Spacer(minLength: 12)
@@ -119,11 +195,28 @@ struct ProfileCard: View {
                         .fill(LinearGradient(colors: [style.glow, style.accent.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 104, height: 104)
                     Circle()
-                        .fill(style == .paper ? Color.white : Color.black.opacity(style == .ember ? 0.25 : 0.88))
+                        .fill(style == .light ? Color.white : Color.black.opacity(0.88))
                         .frame(width: 96, height: 96)
-                    Text(initials)
-                        .font(.system(size: 38, weight: .bold, design: .rounded))
-                        .foregroundStyle(style == .paper ? Color(red: 1.0, green: 0.42, blue: 0.18) : .white)
+                    if let avatar = info.avatar {
+                        Image(uiImage: avatar)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 96, height: 96)
+                            .clipShape(Circle())
+                    } else {
+                        Text(initials)
+                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                            .foregroundStyle(style == .light ? style.accent : .white)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if info.isLockedIn {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 22, height: 22)
+                            .overlay(Circle().stroke(style == .light ? Color.white : Color.black, lineWidth: 3))
+                            .offset(x: -2, y: -2)
+                    }
                 }
 
                 Text(info.name)
@@ -190,8 +283,21 @@ struct ProfileCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .strokeBorder(style.ink.opacity(style == .paper ? 0.08 : 0.12), lineWidth: 1)
+                .strokeBorder(style.ink.opacity(style == .light ? 0.08 : 0.12), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private var customArt: some View {
+        if let stillFrame {
+            Image(uiImage: stillFrame).resizable().scaledToFill().frame(width: 340, height: 460).clipped()
+        } else if let background {
+            if background.isAnimated {
+                AnimatedFramesView(background: background).frame(width: 340, height: 460)
+            } else if let still = background.still {
+                Image(uiImage: still).resizable().scaledToFill().frame(width: 340, height: 460).clipped()
+            }
+        }
     }
 
     private func weekBars(_ days: [Int]) -> some View {
@@ -216,27 +322,32 @@ struct ProfileCard: View {
 
 // MARK: - Your profile
 
-/// Your own card: swipe between looks, then share it as an image.
+/// Your own card: swipe between looks, make it yours, then share it.
 struct MyProfileView: View {
     @EnvironmentObject private var social: SocialStore
     @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var avatars: AvatarStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var style: CardStyle = .midnight
-    @State private var rendered: UIImage?
+    @StateObject private var backgrounds = CardBackgroundStore()
+    @State private var style: CardStyle = .dark
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var isEditing = false
+    @State private var isPreparing = false
+    @State private var shareItems: [Any] = []
+    @State private var isSharing = false
     @State private var didCopy = false
 
     private var info: ProfileCardInfo {
         let calendar = Calendar.current
         let start = calendar.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
         // Monday-first, whatever the locale's first weekday is.
-        let days = (0..<7).map { offset -> Int in
-            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { return 0 }
-            return history.sessions(on: day).reduce(0) { $0 + $1.minutes }
-        }
-        let weekdayOrder = (0..<7).map { (calendar.component(.weekday, from: calendar.date(byAdding: .day, value: $0, to: start) ?? start) + 5) % 7 }
         var monday = [Int](repeating: 0, count: 7)
-        for (offset, slot) in weekdayOrder.enumerated() { monday[slot] = days[offset] }
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let slot = (calendar.component(.weekday, from: day) + 5) % 7
+            monday[slot] = history.sessions(on: day).reduce(0) { $0 + $1.minutes }
+        }
         return ProfileCardInfo(
             name: social.me?.displayName ?? "You",
             isLockedIn: false,
@@ -244,74 +355,167 @@ struct MyProfileView: View {
             streak: history.streakDays,
             totalMinutes: history.records.reduce(0) { $0 + $1.minutes },
             dayMinutes: monday,
-            inviteCode: social.me?.inviteCode
+            inviteCode: social.me?.inviteCode,
+            avatar: avatars.image(for: social.me?.id)
         )
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 22) {
-                TabView(selection: $style) {
-                    ForEach(CardStyle.allCases) { option in
-                        ProfileCard(info: info, style: option)
-                            .shadow(color: option.glow.opacity(0.35), radius: 24, y: 10)
-                            .tag(option)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 500)
-
-                HStack(spacing: 8) {
-                    ForEach(CardStyle.allCases) { option in
-                        ChipButton(title: option.rawValue, isSelected: option == style) {
-                            Haptics.select()
-                            withAnimation(Theme.spring) { style = option }
+            ScrollView {
+                VStack(spacing: 20) {
+                    TabView(selection: $style) {
+                        ForEach(CardStyle.allCases) { option in
+                            ProfileCard(info: info, style: option, background: backgrounds.background)
+                                .shadow(color: option.glow.opacity(0.35), radius: 24, y: 10)
+                                .tag(option)
                         }
                     }
-                }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .frame(height: 500)
 
-                VStack(spacing: 10) {
-                    if let rendered {
-                        ShareLink(
-                            item: Image(uiImage: rendered),
-                            preview: SharePreview("My Lockin card", image: Image(uiImage: rendered))
-                        ) {
-                            Label("Share my card", systemImage: "square.and.arrow.up")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .foregroundStyle(Theme.background)
-                                .background(Color.primary, in: Capsule())
+                    HStack(spacing: 8) {
+                        ForEach(CardStyle.allCases) { option in
+                            ChipButton(title: option.rawValue, isSelected: option == style) {
+                                Haptics.select()
+                                withAnimation(Theme.spring) { style = option }
+                            }
                         }
                     }
-                    if let code = social.me?.inviteCode {
-                        Button {
-                            UIPasteboard.general.string = code
-                            Haptics.success()
-                            didCopy = true
-                        } label: {
-                            Text(didCopy ? "Copied \(code)" : "Copy invite code · \(code)")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
+
+                    if style == .custom { customControls.transition(.opacity) }
+
+                    VStack(spacing: 10) {
+                        Button(action: share) {
+                            Group {
+                                if isPreparing {
+                                    ProgressView().tint(Theme.background)
+                                } else {
+                                    Label("Share my card", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .foregroundStyle(Theme.background)
+                            .background(Color.primary, in: Capsule())
+                        }
+                        .disabled(isPreparing)
+
+                        if let code = social.me?.inviteCode {
+                            Button {
+                                UIPasteboard.general.string = code
+                                Haptics.success()
+                                didCopy = true
+                            } label: {
+                                Text(didCopy ? "Copied \(code)" : "Copy invite code · \(code)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
+                    .padding(.horizontal, Theme.gutter)
                 }
-                .padding(.horizontal, Theme.gutter)
-
-                Spacer(minLength: 0)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+                .animation(Theme.spring, value: style)
             }
-            .padding(.top, 8)
             .navigationTitle("My card")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Edit") { isEditing = true } }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
-            .task(id: style) { render() }
+            .sheet(isPresented: $isEditing) { EditProfileView() }
+            .sheet(isPresented: $isSharing) { ShareSheet(items: shareItems).presentationDetents([.medium, .large]) }
+            .onChange(of: pickerItem) { item in
+                Task {
+                    if let data = try? await item?.loadTransferable(type: Data.self) { backgrounds.set(data) }
+                    pickerItem = nil
+                }
+            }
         }
     }
 
-    private func render() {
-        let renderer = ImageRenderer(content: ProfileCard(info: info, style: style).padding(20).background(Color.clear))
-        renderer.scale = 3
-        rendered = renderer.uiImage
+    private var customControls: some View {
+        VStack(spacing: 8) {
+            PhotosPicker(selection: $pickerItem, matching: .any(of: [.images])) {
+                Label(backgrounds.background == nil ? "Choose a photo or GIF" : "Change background", systemImage: "photo.on.rectangle.angled")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Theme.accent.opacity(0.12), in: Capsule())
+                    .foregroundStyle(Theme.accent)
+            }
+            if backgrounds.background != nil {
+                Button("Remove background") { backgrounds.clear() }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Pick any picture from your gallery. GIFs keep moving.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
+
+    // MARK: Sharing
+
+    private func share() {
+        isPreparing = true
+        Task {
+            // Let the spinner draw before the (main-thread) rendering starts.
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            let bg = style == .custom ? backgrounds.background : nil
+            if let bg, bg.isAnimated, let url = renderGIF(bg) {
+                shareItems = [url]
+            } else if let url = renderPNG(still: bg?.still) {
+                shareItems = [url]
+            }
+            isPreparing = false
+            if !shareItems.isEmpty { isSharing = true }
+        }
+    }
+
+    private func renderer(still: UIImage?, background: CardBackground? = nil) -> ImageRenderer<some View> {
+        let view = ProfileCard(info: info, style: style, background: background, stillFrame: still)
+            .padding(20)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 3
+        return renderer
+    }
+
+    private func renderPNG(still: UIImage?) -> URL? {
+        guard let image = renderer(still: still).uiImage, let data = image.pngData() else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("lockin-card.png")
+        try? data.write(to: url, options: .atomic)
+        return url
+    }
+
+    /// An animated GIF of the card: the picture's frames behind a still card.
+    private func renderGIF(_ bg: CardBackground) -> URL? {
+        let stride = max(1, Int((Double(bg.frames.count) / 24).rounded(.up)))
+        let chosen = Swift.stride(from: 0, to: bg.frames.count, by: stride).map { bg.frames[$0] }
+        let delay = max(0.05, bg.duration / Double(bg.frames.count) * Double(stride))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("lockin-card.gif")
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, chosen.count, nil) else { return nil }
+        CGImageDestinationSetProperties(destination, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+        for frame in chosen {
+            let r = renderer(still: frame)
+            r.scale = 2
+            guard let cg = r.uiImage?.cgImage else { continue }
+            CGImageDestinationAddImage(destination, cg, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay]] as CFDictionary)
+        }
+        return CGImageDestinationFinalize(destination) ? url : nil
+    }
+}
+
+/// The system share sheet.
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

@@ -136,6 +136,21 @@ final class SocialStore: ObservableObject {
         }
     }
 
+    /// Points your profile at an uploaded photo (nil removes it).
+    func setAvatarPath(_ path: String?) async throws {
+        guard let client = Backend.client, let userID = me?.id else { return }
+        struct Update: Encodable {
+            let avatar_path: String?
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(avatar_path, forKey: .avatar_path)
+            }
+            enum CodingKeys: String, CodingKey { case avatar_path }
+        }
+        me = try await client.from("profiles").update(Update(avatar_path: path)).eq("id", value: userID)
+            .select().single().execute().value
+    }
+
     /// Reloads friends, requests, groups and invites. Called on a timer while the app is open.
     func refresh() async {
         guard let client = Backend.client, me != nil else { return }

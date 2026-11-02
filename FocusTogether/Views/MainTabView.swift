@@ -8,6 +8,7 @@ enum MainTab: Hashable {
 struct MainTabView: View {
     @State private var tab: MainTab = .lock
     @EnvironmentObject private var social: SocialStore
+    @EnvironmentObject private var avatars: AvatarStore
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -30,6 +31,7 @@ struct MainTabView: View {
             while !Task.isCancelled {
                 await social.refresh()
                 await social.publishCurrent()
+                await avatars.sync(me: social.me, friends: social.friends)
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
             }
         }
