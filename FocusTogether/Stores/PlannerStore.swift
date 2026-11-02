@@ -20,6 +20,14 @@ final class PlannerStore: ObservableObject {
     init() {
         items = LocalStore.load([PlanItem].self, forKey: Key.items) ?? []
         goals = LocalStore.load([Goal].self, forKey: Key.goals) ?? []
+        NotificationCenter.default.addObserver(forName: .lockinCloudApplied, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadFromCloud() }
+        }
+    }
+
+    private func reloadFromCloud() {
+        if let fresh = LocalStore.load([PlanItem].self, forKey: Key.items), fresh != items { items = fresh }
+        if let fresh = LocalStore.load([Goal].self, forKey: Key.goals), fresh != goals { goals = fresh }
     }
 
     private let calendar = Calendar.current

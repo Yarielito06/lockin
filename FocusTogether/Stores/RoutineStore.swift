@@ -20,6 +20,7 @@ final class RoutineStore: ObservableObject {
     @Published private var completions: SharedCompletions.Days {
         didSet {
             SharedCompletions.save(completions)
+            if let data = try? JSONEncoder().encode(completions) { CloudSync.push(CloudSync.completionsKey, data: data) }
             refreshReminders()
         }
     }
@@ -34,6 +35,9 @@ final class RoutineStore: ObservableObject {
         completions = stored
         pruneOldCompletions()
         refreshReminders()
+        NotificationCenter.default.addObserver(forName: .lockinCloudApplied, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reloadFromCloud() }
+        }
 
         #if DEBUG
         // Fills in the previous two days so streaks can be checked without waiting.
@@ -44,6 +48,13 @@ final class RoutineStore: ObservableObject {
             }
         }
         #endif
+    }
+
+    /// Newer routines or ticks arrived from another of your devices.
+    private func reloadFromCloud() {
+        if let fresh = LocalStore.load([Routine].self, forKey: Key.routines), fresh != routines { routines = fresh }
+        let ticks = SharedCompletions.load()
+        if ticks != completions { completions = ticks }
     }
 
     /// Re-plans notifications (prayer reminders roll a week ahead). Also called on app foreground.

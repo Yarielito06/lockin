@@ -6,6 +6,7 @@ struct TodayView: View {
     @EnvironmentObject private var planner: PlannerStore
     @State private var isAdding = false
     @State private var editingGoal: Goal?
+    @State private var editingPlanItem: PlanItem?
     @State private var isAddingGoal = false
     @State private var isAddingItem = false
     @State private var editing: Routine?
@@ -38,29 +39,20 @@ struct TodayView: View {
                         .accessibilityLabel("Add")
                     }
 
-                    GoalsStrip(onAdd: { isAddingGoal = true }, onEdit: { editingGoal = $0 })
-
-                    if store.routines.isEmpty {
-                        emptyState
-                    } else {
-                        progressCard
-                        ForEach(store.routines) { routine in
-                            RoutineCard(
-                                routine: routine,
-                                onEdit: { editing = routine },
-                                onDelete: { deleting = routine },
-                                onComplete: { streak in celebrate(routine, streak: streak) }
-                            )
-                            .swipeToDelete { deleteWithUndo(routine) }
-                            .contextMenu {
-                                Button { editing = routine } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                Button(role: .destructive) { deleting = routine } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                    if BlockingManager.isOnMac {
+                        // Wide screens: your day on the left, goals and what's coming on the right.
+                        HStack(alignment: .top, spacing: 28) {
+                            VStack(alignment: .leading, spacing: 18) { routinesColumn }
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                            VStack(alignment: .leading, spacing: 22) {
+                                GoalsStrip(onAdd: { isAddingGoal = true }, onEdit: { editingGoal = $0 })
+                                UpcomingList(onEditItem: { editingPlanItem = $0 }, onEditGoal: { editingGoal = $0 })
                             }
+                            .frame(width: 400, alignment: .topLeading)
                         }
+                    } else {
+                        GoalsStrip(onAdd: { isAddingGoal = true }, onEdit: { editingGoal = $0 })
+                        routinesColumn
                     }
                 }
                 .padding(.horizontal, Theme.gutter)
@@ -107,6 +99,7 @@ struct TodayView: View {
             .sheet(isPresented: $isAddingGoal) { GoalEditorView() }
             .sheet(isPresented: $isAddingItem) { PlanItemEditorView() }
             .sheet(item: $editingGoal) { GoalEditorView(goal: $0) }
+            .sheet(item: $editingPlanItem) { PlanItemEditorView(item: $0) }
             .sheet(item: $editing) { routine in
                 NavigationStack {
                     RoutineEditorView(mode: .edit(routine)) { editing = nil }
@@ -128,6 +121,32 @@ struct TodayView: View {
                 Text("Its reminders and today's ticks go with it.")
             }
         }
+    }
+
+    @ViewBuilder
+    private var routinesColumn: some View {
+            if store.routines.isEmpty {
+                emptyState
+            } else {
+                progressCard
+                ForEach(store.routines) { routine in
+                    RoutineCard(
+                        routine: routine,
+                        onEdit: { editing = routine },
+                        onDelete: { deleting = routine },
+                        onComplete: { streak in celebrate(routine, streak: streak) }
+                    )
+                    .swipeToDelete { deleteWithUndo(routine) }
+                    .contextMenu {
+                        Button { editing = routine } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) { deleting = routine } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
     }
 
     private func deleteWithUndo(_ routine: Routine) {

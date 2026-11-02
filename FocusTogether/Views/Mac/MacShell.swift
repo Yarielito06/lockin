@@ -37,7 +37,7 @@ struct MacShell: View {
     var body: some View {
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 300)
+                .navigationSplitViewColumnWidth(min: 250, ideal: 290, max: 340)
         } detail: {
             detail
         }
@@ -59,16 +59,16 @@ struct MacShell: View {
             HStack(spacing: 10) {
                 Image("LogoDark")
                     .resizable().scaledToFit()
-                    .frame(width: 34, height: 34)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .frame(width: 42, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 Text("Lockin")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 18)
+            .padding(.horizontal, 22)
+            .padding(.top, 26)
+            .padding(.bottom, 22)
 
-            VStack(spacing: 4) {
+            VStack(spacing: 6) {
                 ForEach(Section.allCases, id: \.self) { item in
                     row(item)
                 }
@@ -80,14 +80,14 @@ struct MacShell: View {
             Button { isShowingMyCard = true } label: {
                 MeCardHeader(
                     info: .mine(social: social, history: history, avatars: avatars),
-                    todayMinutes: history.todayMinutes
+                    todayMinutes: history.todayMinutes,
+                    compact: true
                 )
-                .scaleEffect(0.92)
             }
             .buttonStyle(.plain)
             .disabled(social.me == nil)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 14)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 18)
         }
         .frame(maxHeight: .infinity)
         .background(.ultraThinMaterial)
@@ -101,10 +101,10 @@ struct MacShell: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: item.symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 22)
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: 26)
                 Text(item.title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                 Spacer()
                 if item == .friends, social.pendingCount > 0 {
                     Text("\(social.pendingCount)")
@@ -116,8 +116,8 @@ struct MacShell: View {
                 }
             }
             .foregroundStyle(isSelected ? Color.white : Color.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
             .background(
                 isSelected
                     ? AnyShapeStyle(LinearGradient(colors: [Color(red: 1.0, green: 0.58, blue: 0.28), Theme.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -142,22 +142,41 @@ struct MacShell: View {
                 case .friends: FriendsView()
                 }
             }
-            .frame(maxWidth: 780)
+            .frame(maxWidth: maxWidth)
             .frame(maxWidth: .infinity)
+            // Bigger text everywhere on the Mac.
+            .environment(\.dynamicTypeSize, .xxLarge)
 
             FocusIsland()
                 .padding(.top, 10)
         }
     }
 
+    private var maxWidth: CGFloat {
+        switch section ?? .lock {
+        case .today: 1240
+        case .lock: 760
+        case .calendar: 980
+        case .friends: 1000
+        }
+    }
+
     /// Soft colour behind frosted cards, so the glass has something to be glass over.
     private var backdrop: some View {
-        ZStack {
-            Theme.background
-            Circle().fill(Theme.accent.opacity(0.22)).frame(width: 520, height: 520).blur(radius: 110).offset(x: 260, y: -240)
-            Circle().fill(Color(red: 0.55, green: 0.38, blue: 0.95).opacity(0.14)).frame(width: 460, height: 460).blur(radius: 120).offset(x: -280, y: 260)
+        TimelineView(.animation(minimumInterval: 1 / 20)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            ZStack {
+                Theme.background
+                blob(Theme.accent, 0.38, 640, x: 330 + 60 * sin(t * 0.21), y: -260 + 50 * cos(t * 0.17))
+                blob(Color(red: 0.55, green: 0.38, blue: 0.95), 0.30, 560, x: -340 + 70 * cos(t * 0.19), y: 280 + 60 * sin(t * 0.23))
+                blob(Color(red: 0.20, green: 0.60, blue: 0.95), 0.22, 480, x: 120 + 80 * sin(t * 0.15), y: 330 + 40 * cos(t * 0.2))
+            }
         }
         .ignoresSafeArea()
+    }
+
+    private func blob(_ color: Color, _ opacity: Double, _ size: CGFloat, x: CGFloat, y: CGFloat) -> some View {
+        Circle().fill(color.opacity(opacity)).frame(width: size, height: size).blur(radius: 120).offset(x: x, y: y)
     }
 }
 

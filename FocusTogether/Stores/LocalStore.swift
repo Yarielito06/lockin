@@ -13,5 +13,6 @@ enum LocalStore {
     static func save<T: Encodable>(_ value: T, forKey key: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
         defaults.set(data, forKey: key)
+        if CloudSync.isSynced(key) { CloudSync.push(key, data: data) }
     }
 }

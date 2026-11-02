@@ -18,6 +18,12 @@ final class HistoryStore: ObservableObject {
 
     init() {
         records = LocalStore.load([SessionRecord].self, forKey: Self.key) ?? []
+        NotificationCenter.default.addObserver(forName: .lockinCloudApplied, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let fresh = LocalStore.load([SessionRecord].self, forKey: Self.key), fresh.count != self.records.count else { return }
+                self.records = fresh
+            }
+        }
     }
 
     func record(_ session: FocusSession) {

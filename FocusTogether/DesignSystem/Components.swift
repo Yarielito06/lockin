@@ -5,19 +5,22 @@ import SwiftUI
 private struct CardModifier: ViewModifier {
     var padding: CGFloat
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
-        content
+        let padded = content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                if BlockingManager.isOnMac {
-                    // Frosted glass on the Mac, over the soft colour behind it.
-                    shape.fill(.thinMaterial).overlay(shape.strokeBorder(.white.opacity(0.10), lineWidth: 1))
-                } else {
-                    shape.fill(Theme.surface)
-                }
+        if BlockingManager.isOnMac {
+            // Liquid glass on the Mac, over the colour drifting behind it.
+            if #available(iOS 26.0, *) {
+                padded.glassEffect(.regular, in: shape)
+            } else {
+                padded.background { shape.fill(.thinMaterial).overlay(shape.strokeBorder(.white.opacity(0.10), lineWidth: 1)) }
             }
+        } else {
+            padded.background(Theme.surface, in: shape)
+        }
     }
 }
 

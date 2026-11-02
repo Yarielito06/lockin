@@ -15,6 +15,7 @@ struct LockinApp: App {
     @StateObject private var planner: PlannerStore
 
     init() {
+        CloudSync.start()
         let history = HistoryStore()
         let blocking = BlockingManager(history: history)
         let routines = RoutineStore()

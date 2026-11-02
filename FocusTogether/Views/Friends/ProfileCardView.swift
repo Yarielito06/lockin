@@ -660,6 +660,8 @@ struct ShareSheet: UIViewControllerRepresentable {
 struct MeCardHeader: View {
     let info: ProfileCardInfo
     let todayMinutes: Int
+    /// A tighter layout for narrow spaces like the Mac sidebar.
+    var compact = false
 
     @EnvironmentObject private var backgrounds: CardBackgroundStore
     @AppStorage("lockin.cardStyle") private var style: CardStyle = .dark
@@ -694,7 +696,45 @@ struct MeCardHeader: View {
         }
     }
 
+    @ViewBuilder
     private var content: some View {
+        if compact { compactContent } else { fullContent }
+    }
+
+    private var compactContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                avatar
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(info.name)
+                        .font(.system(size: 19, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    HStack(spacing: 5) {
+                        RankBadge(rank: info.rank, size: 16)
+                        Text(info.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .padding(.leading, 5)
+                    .padding(.trailing, 9)
+                    .padding(.vertical, 3)
+                    .background(style.chip, in: Capsule())
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 0) {
+                stat(todayMinutes.minutesLabel, "today")
+                divider
+                stat(info.weekMinutes.minutesLabel, "week")
+                divider
+                stat("\(info.streak)", "streak", flame: true)
+            }
+        }
+    }
+
+    private var fullContent: some View {
         VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     avatar
@@ -761,7 +801,7 @@ struct MeCardHeader: View {
                     .foregroundStyle(style == .light ? style.accent : .white)
             }
         }
-        .frame(width: 64, height: 64)
+        .frame(width: compact ? 52 : 64, height: compact ? 52 : 64)
         .overlay(Circle().strokeBorder(style == .custom ? Color.white.opacity(0.9) : style.accent, lineWidth: 2))
     }
 
