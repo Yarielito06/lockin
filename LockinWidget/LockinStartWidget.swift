@@ -30,8 +30,13 @@ private struct LockButton<Content: View>: View {
 
     var body: some View {
         if #available(iOS 17.0, *) {
-            Button(intent: WidgetLockIntent(mode: mode)) { content }
-                .buttonStyle(.plain)
+            // The whole area counts as the button, not just the drawn pixels.
+            Button(intent: WidgetLockIntent(mode: mode)) {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         } else {
             Link(destination: LockRequest.url(mode)) { content }
         }
