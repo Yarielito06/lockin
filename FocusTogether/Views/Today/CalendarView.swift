@@ -5,7 +5,12 @@ import SwiftUI
 struct CalendarView: View {
     @EnvironmentObject private var routines: RoutineStore
     @EnvironmentObject private var history: HistoryStore
+    @EnvironmentObject private var planner: PlannerStore
     @Environment(\.dismiss) private var dismiss
+    @State private var editingItem: PlanItem?
+    @State private var editingGoal: Goal?
+    @State private var isAddingItem = false
+    @State private var isAddingGoal = false
 
     private enum Mode: String, CaseIterable {
         case week = "Week"
@@ -32,18 +37,32 @@ struct CalendarView: View {
                     .animation(Theme.spring, value: mode)
 
                     summary
+                    DayPlan(date: selected, onEditItem: { editingItem = $0 }, onAdd: { isAddingItem = true })
+                    UpcomingList(onEditItem: { editingItem = $0 }, onEditGoal: { editingGoal = $0 })
                     DayDetail(date: selected)
                 }
                 .padding(.horizontal, Theme.gutter)
                 .padding(.bottom, 24)
             }
-            .navigationTitle("Your progress")
+            .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Menu {
+                        Button { isAddingItem = true } label: { Label("Deadline, exam or event", systemImage: "calendar.badge.plus") }
+                        Button { isAddingGoal = true } label: { Label("New goal", systemImage: "flag.checkered") }
+                    } label: {
+                        Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Theme.accent)
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(isPresented: $isAddingItem) { PlanItemEditorView(startDate: selected) }
+            .sheet(item: $editingItem) { PlanItemEditorView(item: $0) }
+            .sheet(isPresented: $isAddingGoal) { GoalEditorView() }
+            .sheet(item: $editingGoal) { GoalEditorView(goal: $0) }
         }
     }
 
@@ -131,6 +150,7 @@ struct CalendarView: View {
                                 .foregroundStyle(isFuture(day) ? Color.secondary : .primary)
                         }
                         .frame(width: 38, height: 38)
+                        planDots(for: day)
                     }
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
@@ -164,9 +184,12 @@ struct CalendarView: View {
                 ForEach(days, id: \.self) { day in
                     let isSelected = calendar.isDate(day, inSameDayAs: selected)
                     Button { select(day) } label: {
-                        Text(day.formatted(.dateTime.day()))
-                            .font(.caption.weight(calendar.isDateInToday(day) ? .bold : .medium).monospacedDigit())
-                            .foregroundStyle(heatTextColor(for: day))
+                        VStack(spacing: 2) {
+                            Text(day.formatted(.dateTime.day()))
+                                .font(.caption.weight(calendar.isDateInToday(day) ? .bold : .medium).monospacedDigit())
+                                .foregroundStyle(heatTextColor(for: day))
+                            planDots(for: day, onHeat: true)
+                        }
                             .frame(maxWidth: .infinity, minHeight: 38)
                             .background(heatColor(for: day), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .overlay(
@@ -230,6 +253,20 @@ struct CalendarView: View {
     }
 
     // MARK: Helpers
+
+    /// Small dots for things planned on a day: a goal's day, and each kind of item.
+    @ViewBuilder
+    private func planDots(for day: Date, onHeat: Bool = false) -> some View {
+        let kinds = Set(planner.items(on: day).filter { !$0.isDone }.map(\.kind))
+        let hasGoal = planner.hasGoal(on: day)
+        HStack(spacing: 3) {
+            if hasGoal { Image(systemName: "flag.fill").font(.system(size: 6)).foregroundStyle(onHeat ? Color.primary : Theme.accent) }
+            ForEach(PlanKind.allCases.filter { kinds.contains($0) }.prefix(3)) { kind in
+                Circle().fill(kind.color).frame(width: 5, height: 5)
+            }
+        }
+        .frame(height: 6)
+    }
 
     private func select(_ day: Date) {
         Haptics.select()

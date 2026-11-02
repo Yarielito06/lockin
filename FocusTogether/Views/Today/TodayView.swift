@@ -3,7 +3,11 @@ import SwiftUI
 /// The first tab: daily routines (prayers, habits, anything) with tick-off slots.
 struct TodayView: View {
     @EnvironmentObject private var store: RoutineStore
+    @EnvironmentObject private var planner: PlannerStore
     @State private var isAdding = false
+    @State private var editingGoal: Goal?
+    @State private var isAddingGoal = false
+    @State private var isAddingItem = false
     @State private var editing: Routine?
     @State private var deleting: Routine?
     @State private var toast: String?
@@ -20,10 +24,21 @@ struct TodayView: View {
                         title: "Today",
                         subtitle: Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide))
                     ) {
-                        CircleIconButton(systemName: "plus", accessibilityLabel: "Add routine") {
-                            isAdding = true
+                        Menu {
+                            Button { isAdding = true } label: { Label("New routine", systemImage: "checklist") }
+                            Button { isAddingGoal = true } label: { Label("New goal", systemImage: "flag.checkered") }
+                            Button { isAddingItem = true } label: { Label("Deadline, exam or event", systemImage: "calendar.badge.plus") }
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.primary)
+                                .frame(width: 40, height: 40)
+                                .background(Theme.surface, in: Circle())
                         }
+                        .accessibilityLabel("Add")
                     }
+
+                    GoalsStrip(onAdd: { isAddingGoal = true }, onEdit: { editingGoal = $0 })
 
                     if store.routines.isEmpty {
                         emptyState
@@ -89,6 +104,9 @@ struct TodayView: View {
             .sheet(isPresented: $isAdding) {
                 AddRoutineFlow()
             }
+            .sheet(isPresented: $isAddingGoal) { GoalEditorView() }
+            .sheet(isPresented: $isAddingItem) { PlanItemEditorView() }
+            .sheet(item: $editingGoal) { GoalEditorView(goal: $0) }
             .sheet(item: $editing) { routine in
                 NavigationStack {
                     RoutineEditorView(mode: .edit(routine)) { editing = nil }

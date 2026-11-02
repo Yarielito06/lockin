@@ -12,6 +12,7 @@ struct LockinApp: App {
     @StateObject private var moments = MomentsStore()
     @StateObject private var avatars = AvatarStore()
     @StateObject private var cardBackgrounds = CardBackgroundStore()
+    @StateObject private var planner = PlannerStore()
 
     init() {
         let history = HistoryStore()
@@ -38,6 +39,7 @@ struct LockinApp: App {
                 .environmentObject(moments)
                 .environmentObject(avatars)
                 .environmentObject(cardBackgrounds)
+                .environmentObject(planner)
         }
     }
 }
